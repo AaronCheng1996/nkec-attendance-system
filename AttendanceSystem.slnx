@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Attendance.Api/Attendance.Api.csproj" />
+  </Folder>
+</Solution>

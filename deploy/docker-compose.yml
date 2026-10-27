@@ -1,0 +1,41 @@
+# 自架部署：app + SQL Server Express
+# 使用方式：cp .env.example .env，填好密碼後 docker compose up -d --build
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  app:
+    image: ${APP_IMAGE:-attendance-system:latest}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Server=db;Database=attendance;User Id=sa;Password=${DB_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+      Jwt__Key: ${JWT_KEY:?JWT_KEY is required}
+      Seed__AdminUserName: ${ADMIN_USERNAME:-admin}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      App__TimeZone: ${TIME_ZONE:-Asia/Taipei}
+      # Trust X-Forwarded-* from the reverse proxy in front (for client IPs in audit logs and rate limiting).
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${BEHIND_PROXY:-false}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    restart: unless-stopped
+
+volumes:
+  mssql-data:

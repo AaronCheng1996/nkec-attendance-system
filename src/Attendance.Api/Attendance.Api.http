@@ -1,0 +1,20 @@
+@host = http://localhost:5080
+@token = paste-access-token-here
+
+### Login (credentials come from user-secrets: Seed:AdminUserName / Seed:AdminPassword)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{ "userName": "admin", "password": "" }
+
+### Groups visible to the current user
+GET {{host}}/api/groups
+Authorization: Bearer {{token}}
+
+### Roll call for a group and date
+GET {{host}}/api/groups/1/rollcall?date=2026-10-11
+Authorization: Bearer {{token}}
+
+### Report summary
+GET {{host}}/api/reports/summary?from=2026-08-01&to=2026-10-31
+Authorization: Bearer {{token}}
