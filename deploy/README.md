@@ -12,7 +12,7 @@ git push（main）──► GitHub Actions ──► 測試 ──► 建置 ima
 1. 在 Docker Hub 建立 repository `nkec-attendance-system`（公開或私人皆可）
 2. Docker Hub → Account settings → Personal access tokens，建立一個 **Read & Write** 的 token
 3. GitHub repo → Settings → Secrets and variables → Actions：
-   - **Variables** 新增 `DOCKERHUB_USERNAME` = Docker Hub 帳號
+   - **Variables**（或 Secrets）新增 `DOCKERHUB_USERNAME` = Docker Hub 帳號
    - **Secrets** 新增 `DOCKERHUB_TOKEN` = 上一步的 token
 
 之後每次推送到 `main`，通過測試的 image 會以這些標籤推上 Docker Hub：

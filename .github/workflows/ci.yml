@@ -2,8 +2,8 @@
 # 推送到 main 或打 v* 標籤時，另外把 image 推上 Docker Hub，遠端主機的 deploy/update.sh 會自動更新。
 #
 # 需要在 GitHub repo 的 Settings → Secrets and variables → Actions 設定：
-#   Variables: DOCKERHUB_USERNAME  Docker Hub 帳號
-#   Secrets:   DOCKERHUB_TOKEN     Docker Hub 的 Access Token（Read & Write）
+#   DOCKERHUB_USERNAME  Docker Hub 帳號（放在 Variables 或 Secrets 皆可）
+#   DOCKERHUB_TOKEN     Docker Hub 的 Access Token（Read & Write），放在 Secrets
 name: CI
 
 on:
@@ -58,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PUBLISH: ${{ github.event_name != 'pull_request' }}
+      DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
     steps:
       - uses: actions/checkout@v5
 
@@ -83,15 +84,15 @@ jobs:
       - name: Check Docker Hub settings
         if: env.PUBLISH == 'true'
         run: |
-          if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "::error::請在 repo 設定 DOCKERHUB_USERNAME（Variables）與 DOCKERHUB_TOKEN（Secrets）"
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error::請在 repo 設定 DOCKERHUB_USERNAME 與 DOCKERHUB_TOKEN（Settings → Secrets and variables → Actions）"
             exit 1
           fi
 
       - uses: docker/login-action@v3
         if: env.PUBLISH == 'true'
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Image tags
@@ -99,7 +100,7 @@ jobs:
         if: env.PUBLISH == 'true'
         uses: docker/metadata-action@v5
         with:
-          images: ${{ vars.DOCKERHUB_USERNAME }}/nkec-attendance-system
+          images: ${{ env.DOCKERHUB_USERNAME }}/nkec-attendance-system
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
