@@ -8,6 +8,7 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Express
       MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}
+      MSSQL_MEMORY_LIMIT_MB: ${DB_MEMORY_LIMIT_MB:-2048}
     volumes:
       - mssql-data:/var/opt/mssql
     healthcheck:
@@ -32,7 +33,7 @@ services:
       # Trust X-Forwarded-* from the reverse proxy in front (for client IPs in audit logs and rate limiting).
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${BEHIND_PROXY:-false}
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:
