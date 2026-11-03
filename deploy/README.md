@@ -47,10 +47,14 @@ docker compose up -d
 2. 換成新版 app（新版若有 Migration 會在啟動時自動套用）
 3. 等待 `/healthz` 回應正常；失敗時印出錯誤紀錄並保留備份
 
-用 cron 定期執行（`sudo crontab -e`）。建議選在沒有聚會的時段，例如每天凌晨 3 點：
+用 cron 定期執行（`crontab -e`，執行的帳號需在 `docker` 群組）。建議選在沒有聚會的時段，例如台灣時間每天凌晨 3 點。
+cron 用的是**主機的時區**，先用 `timedatectl` 確認；多數雲端主機是 UTC，台灣凌晨 3 點＝UTC 19:00：
 
 ```cron
-0 3 * * * sh /opt/attendance/update.sh >> /var/log/attendance-update.log 2>&1
+# 主機時區為 Asia/Taipei
+0 3 * * * sh /opt/attendance/update.sh >> /opt/attendance/update.log 2>&1
+# 主機時區為 UTC
+0 19 * * * sh /opt/attendance/update.sh >> /opt/attendance/update.log 2>&1
 ```
 
 想立即更新就手動執行 `sh /opt/attendance/update.sh`。
