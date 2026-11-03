@@ -1,0 +1,23 @@
+#!/bin/sh
+# 每次 commit 前執行測試，沒通過就不讓 commit。
+# 每個 clone 需啟用一次：git config core.hooksPath .githooks
+# 緊急情況可用 git commit --no-verify 略過（CI 仍會再跑一次）。
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+echo "▶ 後端測試"
+dotnet test
+
+echo "▶ 檢查 Migration 是否與資料模型一致"
+dotnet tool restore >/dev/null
+# The EF tools start the app's host builder, which requires these; no database is contacted.
+ConnectionStrings__Default=Server=unused \
+Jwt__Key=pre-commit-placeholder-signing-key-0123456789 \
+  dotnet tool run dotnet-ef migrations has-pending-model-changes --project src/Attendance.Api --no-build
+
+echo "▶ 前端檢查"
+cd web
+npm run lint --silent
+npx tsc -b
+
+echo "✓ 全部通過"
