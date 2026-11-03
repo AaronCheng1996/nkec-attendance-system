@@ -1,0 +1,9 @@
+# 不使用 Docker Hub，直接從原始碼建置 app image：
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# 這種方式不能用 update.sh 自動更新，要更新請 git pull 後再執行一次上面的指令。
+services:
+  app:
+    image: attendance-system:local
+    build:
+      context: ..
+      dockerfile: Dockerfile

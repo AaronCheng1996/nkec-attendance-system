@@ -1,0 +1,119 @@
+# 每次推送與 PR：跑測試、建置 Docker image，並用真正的 SQL Server 做 smoke test。
+# 推送到 main 或打 v* 標籤時，另外把 image 推上 Docker Hub，遠端主機的 deploy/update.sh 會自動更新。
+#
+# 需要在 GitHub repo 的 Settings → Secrets and variables → Actions 設定：
+#   Variables: DOCKERHUB_USERNAME  Docker Hub 帳號
+#   Secrets:   DOCKERHUB_TOKEN     Docker Hub 的 Access Token（Read & Write）
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Backend tests
+        run: dotnet test
+
+      - name: Migrations match the data model
+        run: |
+          dotnet tool restore
+          dotnet tool run dotnet-ef migrations has-pending-model-changes --project src/Attendance.Api
+        env:
+          # The EF tools start the app's host builder, which requires these; no database is contacted.
+          ConnectionStrings__Default: Server=unused
+          Jwt__Key: ci-placeholder-signing-key-0123456789-0123456789
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Frontend lint and build
+        working-directory: web
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Version
+        id: version
+        run: echo "value=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: attendance-system:ci
+          build-args: APP_VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test with SQL Server
+        run: sh deploy/smoke-test.sh attendance-system:ci
+
+      - name: Check Docker Hub settings
+        if: env.PUBLISH == 'true'
+        run: |
+          if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error::請在 repo 設定 DOCKERHUB_USERNAME（Variables）與 DOCKERHUB_TOKEN（Secrets）"
+            exit 1
+          fi
+
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        if: env.PUBLISH == 'true'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.DOCKERHUB_USERNAME }}/nkec-attendance-system
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      # Same inputs as "Build image", so this reuses its cache instead of building again.
+      - name: Push to Docker Hub
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha

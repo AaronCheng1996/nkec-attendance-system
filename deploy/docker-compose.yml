@@ -1,5 +1,6 @@
 # 自架部署：app + SQL Server Express
-# 使用方式：cp .env.example .env，填好密碼後 docker compose up -d --build
+# 使用方式見 deploy/README.md。簡單來說：cp .env.example .env，填好設定後 docker compose up -d
+# app 的 image 從 Docker Hub 下載；要從原始碼自行建置，見 docker-compose.build.yml。
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -18,10 +19,7 @@ services:
     restart: unless-stopped
 
   app:
-    image: ${APP_IMAGE:-attendance-system:latest}
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    image: ${APP_IMAGE:-attendance-system:local}
     depends_on:
       db:
         condition: service_healthy

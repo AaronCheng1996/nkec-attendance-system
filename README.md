@@ -12,13 +12,17 @@
 
 ```
 src/Attendance.Api   ASP.NET Core 10 Web API（EF Core、Identity、JWT）
+  Auth/              角色、授權原則（角色與權限的對應集中在 Roles.cs）、JWT
   Domain/            資料模型
   Data/              DbContext（含稽核紀錄）、Migrations、初始資料
   Services/          點名邏輯、群組權限
   Endpoints/         API（auth / groups / people / users / reports）
+tests/               自動化測試（xUnit，SQLite in-memory，不需資料庫伺服器）
 web/                 React + TypeScript + Vite PWA
-deploy/              docker-compose.yml、.env.example
+deploy/              docker-compose.yml、自動更新與 smoke test 腳本、部署說明
 scripts/             工具腳本（SQL Server 連線測試）
+.github/workflows/   CI/CD：測試 → 建置 image → 推上 Docker Hub
+.githooks/           commit 前自動跑測試
 Dockerfile           前端 + 後端打包成單一 image
 ```
 
@@ -57,9 +61,26 @@ npm run dev
 
 開發時 `/api` 會轉給 `localhost:5080`。
 
+### 測試
+
+```powershell
+dotnet test
+```
+
+**每次 commit 前都必須通過測試。** clone 後執行一次以下指令啟用 git hook，之後 commit 時會自動跑後端測試、
+檢查 Migration 是否漏建、前端 lint 與型別檢查，約 15 秒，未通過就不會 commit：
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+測試使用 SQLite in-memory 啟動整個 API，不需要 SQL Server 或 Docker。SQL Server 專屬的部分
+（Migration、定序）由 CI 的 smoke test 用真正的 SQL Server 驗證；本機可在 WSL 執行 `sh deploy/smoke-test.sh`。
+
 ### 修改資料表
 
 ```powershell
+dotnet tool restore   # 第一次使用時
 cd src/Attendance.Api
 # 修改 Domain/ 的類別或 Data/AppDbContext.cs 後：
 dotnet ef migrations add <變更名稱> -o Data/Migrations
@@ -69,21 +90,10 @@ dotnet ef migrations add <變更名稱> -o Data/Migrations
 
 ## 部署
 
-### Docker（其他教會自架）
+推送到 `main` 後，GitHub Actions 會跑測試、建置 image、用 SQL Server 做 smoke test，再推上 Docker Hub。
+遠端主機用 `deploy/docker-compose.yml` 執行，並以 cron 定期執行 `deploy/update.sh` 自動更新（更新前會先備份資料庫）。
 
-```bash
-cd deploy
-cp .env.example .env    # 填入 DB_SA_PASSWORD、JWT_KEY、ADMIN_PASSWORD
-docker compose up -d --build
-```
-
-開啟 `http://<主機>:8080`，用 `.env` 的管理員帳號登入後**立即修改密碼**。
-
-正式上線前：
-
-- 在前面放反向代理（Caddy / Nginx）提供 HTTPS，並設定 `BEHIND_PROXY=true`
-- 改用權限最小的資料庫帳號，不要讓 app 使用 `sa`
-- 定期備份 `mssql-data` volume
+設定步驟、版本回復、正式上線前的注意事項見 [deploy/README.md](deploy/README.md)。
 
 ### Azure
 
@@ -95,6 +105,7 @@ docker compose up -d --build
 
 | 方法 | 路徑 | 權限 |
 |---|---|---|
+| GET | `/healthz`、`/api/version` | 匿名（健康檢查、目前版本） |
 | POST | `/api/auth/login` | 匿名（每 IP 每分鐘 10 次） |
 | GET | `/api/auth/me` | 登入 |
 | POST | `/api/auth/change-password` | 登入 |

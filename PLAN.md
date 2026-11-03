@@ -27,8 +27,10 @@
 
 ```
 /src/Attendance.Api      ASP.NET Core Web API（含 EF Core Migrations）
+/tests/Attendance.Api.Tests  自動化測試
 /web                     React PWA
-/deploy                  docker-compose.yml、.env.example、部署說明
+/deploy                  docker-compose.yml、.env.example、自動更新腳本、部署說明
+/.github/workflows       CI/CD
 /docs                    資料表設計等文件
 Dockerfile               多階段建置：web build → dotnet publish → runtime image
 ```
@@ -42,7 +44,9 @@ Dockerfile               多階段建置：web build → dotnet publish → runt
 | Leader 老師 / 小組長 | 僅自己負責的群組：點名、新增新朋友、查看名單 |
 
 - 密碼強度要求、登入失敗鎖定、管理者可重設密碼、停用帳號立即生效
-- API 使用 JWT（短效 access token + refresh token），全程 HTTPS
+- API 使用 JWT，全程 HTTPS。access token 12 小時到期；**不做 refresh token**（每週只有一個聚會時段，到期重新登入即可）
+- 端點依「能做什麼」使用授權原則（ManagePeople、ViewReports…），角色與權限的對應集中在一處，之後調整權限只改那裡
+- 主責同工目前可管理所有成員；之後要限制在所負責事工時，只需修改 `GroupAccess.People()`
 - 所有新增 / 修改 / 刪除寫入稽核紀錄
 
 ## 資料設計重點
@@ -53,7 +57,10 @@ Dockerfile               多階段建置：web build → dotnet publish → runt
 - 家長也是 `People` 的一筆，透過關係表連結，未來可同時是成人小組成員
 - 點名時整份名單的狀態都寫入（含缺席），報表才算得出出席率
 - 群組成員資格有起訖日期，升班 / 換組後歷史統計不會跑掉
-- 新朋友欄位尚在討論：核心欄位先做，其餘用 EF Core Migration 增加，或放進 `CustomFields`（JSON）
+- 新朋友登記：姓名、生日、年級、電話（只有姓名必填，加上家長同意）。其他需要的欄位之後用 Migration 增加，或放進 `CustomFields`（JSON）
+- 年級以「入學年度」儲存，每年 8 月新學年自動升一級，不必每年修改
+- 已預留之後可能用到的欄位（學校、地址、LINE ID、健康備註、外部編號、群組適用年級、帳號對應人員等），
+  在正式資料進來前先建好，減少之後的 Migration；詳見 [docs/schema.md](docs/schema.md)
 
 ## 個資保護
 
@@ -64,9 +71,12 @@ Dockerfile               多階段建置：web build → dotnet publish → runt
 
 ## 部署
 
-- **本教會**：Azure Container Apps（用量計費、可縮到 0）+ Azure SQL（Basic 或免費方案）
-- **其他教會**：`deploy/docker-compose.yml` 一鍵啟動 app + SQL Server 容器
+- **CI/CD**：推送到 main → GitHub Actions 跑測試 → 建置 image → 用 SQL Server 做 smoke test → 推上 Docker Hub
+- **遠端主機**：`deploy/docker-compose.yml` 啟動 app + SQL Server；cron 定期執行 `deploy/update.sh`，
+  有新版時先備份資料庫再更新（詳見 [deploy/README.md](deploy/README.md)）
+- **其他教會**：同上，用同一個 Docker Hub image 架設獨立一套
 - 啟動時自動套用 EF Core Migrations；首次啟動以環境變數建立第一個 Admin 帳號
+- **測試**：每次 commit 前由 git hook 自動跑測試（`git config core.hooksPath .githooks`），CI 也會再跑一次
 
 ## 階段
 
@@ -75,20 +85,28 @@ Dockerfile               多階段建置：web build → dotnet publish → runt
 | 0 | 規劃、資料表設計、專案骨架 | 完成 |
 | 1 MVP | 登入與角色、成員管理、點名、新增新朋友 | 雛型完成；事工 / 群組的新增編輯畫面尚未做 |
 | 2 報表 | 出席統計、關懷名單、新朋友留存、Excel 匯出 | 雛型完成；趨勢圖尚未做 |
-| 3 完善 | Excel 批次匯入、升班作業、稽核查詢、Docker 部署流程 | 個人換組 + Dockerfile / compose 已有；批次升班、匯入、稽核查詢畫面未做 |
+| 3 完善 | Excel 批次匯入、升班作業、稽核查詢、Docker 部署流程 | 個人換組、CI/CD、自動更新已完成；批次升班、匯入、稽核查詢畫面未做 |
 
-## 雛型尚未涵蓋
+## 尚未完成
 
-- 事工 / 群組的新增與編輯畫面（目前由示範資料建立）
+- 事工 / 群組的新增與編輯畫面與 API（目前由示範資料建立；授權原則 `ManageGroups` 已預留）
+- 停課標記：`Sessions.IsCancelled` 報表已會排除，但還沒有設定停課的 API / 畫面
+- 家長 / 監護人的編輯（目前只在新增新朋友時寫入；新朋友表單已簡化，只留聯絡電話、不填家長姓名）
 - 新朋友重複登記的提醒（同名同生日）
-- refresh token：目前 access token 12 小時到期需重新登入
-- 主責同工的成員查詢尚未依事工限制範圍（點名與報表已限制）
-- 自動化測試
+- 趨勢圖
+- Excel 批次匯入名單（格式之後依需求決定；`People.ExternalId` 已預留供對應）
+- 批次升班（可搭配已預留的群組適用年級 `MinGrade` / `MaxGrade`）
+- 稽核紀錄查詢畫面（資料已有寫入）
+- 敏感欄位（健康 / 過敏）的畫面與權限控管（欄位與授權原則 `ViewSensitiveInfo` 已預留）
+- Google / LINE 登入
 - 離線點名
+- 最小權限的資料庫帳號、HTTPS 反向代理（見 deploy/README.md）
 
-## 待討論
+## 已決定
 
-- [ ] 新朋友登記欄位
-- [ ] 登入方式是否加入 Google / LINE
-- [ ] 現有名單匯入格式
-- [ ] 固定報表格式（例如月報）
+- 登入方式要加入 Google / LINE（帳號密碼登入保留；外部登入使用 Identity 內建的 `AspNetUserLogins`）
+- 報表：目前能匯出 Excel 即可，固定報表格式（例如月報）之後依需求調整
+- 名單匯入格式：之後依需求決定
+- 新朋友登記欄位：姓名、生日、年級、電話（只有姓名必填）
+- 不做 refresh token
+- 權限：目前不需要更細的限制，但架構上保留調整空間（見「角色與權限」）

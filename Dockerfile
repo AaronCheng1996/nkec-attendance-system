@@ -21,6 +21,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=api /app ./
 COPY --from=web /web/dist ./wwwroot
+# Set by CI (branch/tag + commit); shown at /api/version.
+ARG APP_VERSION=dev
+ENV App__Version=$APP_VERSION
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 USER $APP_UID
