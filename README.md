@@ -117,6 +117,7 @@ dotnet ef migrations add <變更名稱> -o Data/Migrations
 | POST / PUT | `/api/ministries`、`/api/groups` | 管理員 |
 | GET / POST / PUT | `/api/people`、`/api/people/{id}` | 主責、管理員 |
 | POST | `/api/people/{id}/move` | 主責、管理員 |
+| GET / POST | `/api/people/import/template`、`/api/people/import`（Excel 匯入，先預覽再匯入） | 主責、管理員 |
 | DELETE | `/api/people/{id}/memberships/{mid}` | 主責、管理員 |
 | GET | `/api/reports/summary`、`absentees`、`newcomers`、`export` | 主責、管理員 |
 | GET / POST / PUT | `/api/users`、`/api/users/{id}`、`/api/users/{id}/reset-password` | 管理員 |

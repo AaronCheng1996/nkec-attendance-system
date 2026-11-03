@@ -76,6 +76,7 @@ builder.Services.AddRateLimiter(o =>
 builder.Services.AddSingleton<AppClock>();
 builder.Services.AddScoped<GroupAccess>();
 builder.Services.AddScoped<RollcallService>();
+builder.Services.AddScoped<PersonImport>();
 
 var app = builder.Build();
 

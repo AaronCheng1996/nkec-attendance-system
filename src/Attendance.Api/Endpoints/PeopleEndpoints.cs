@@ -2,6 +2,7 @@ using Attendance.Api.Auth;
 using Attendance.Api.Data;
 using Attendance.Api.Domain;
 using Attendance.Api.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Attendance.Api.Endpoints;
@@ -37,6 +38,9 @@ public static class PeopleEndpoints
         var people = api.MapGroup("/people").RequireAuthorization(Policies.ManagePeople);
         people.MapGet("/", List);
         people.MapPost("/", Create);
+        people.MapGet("/import/template", ImportTemplate);
+        // Bearer-token auth is not sent automatically by browsers, so a form post needs no antiforgery token.
+        people.MapPost("/import", Import).DisableAntiforgery();
         people.MapGet("/{id:int}", Get);
         people.MapPut("/{id:int}", Update);
         people.MapPost("/{id:int}/move", Move);
@@ -103,6 +107,34 @@ public static class PeopleEndpoints
 
         await db.SaveChangesAsync();
         return Results.Created($"/api/people/{person.Id}", new { person.Id });
+    }
+
+    const long MaxImportBytes = 5 * 1024 * 1024;
+
+    static async Task<IResult> ImportTemplate(PersonImport import) =>
+        Results.File(
+            await import.TemplateAsync(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "成員匯入範本.xlsx");
+
+    /// <summary>Checks an uploaded sheet; with <paramref name="commit"/> also creates the new members.</summary>
+    static async Task<IResult> Import(
+        IFormFile? file, [FromForm] DateOnly? startDate, [FromForm] bool consent, [FromForm] bool commit,
+        PersonImport import, AppClock clock)
+    {
+        if (file is null || file.Length == 0) return Http.Invalid("file", "請選擇要匯入的 Excel 檔");
+        if (file.Length > MaxImportBytes) return Http.Invalid("file", "檔案太大，最多 5 MB");
+        if (commit && !consent) return Http.Invalid("consent", "需取得家長同意才能登記個人資料");
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            return Results.Ok(await import.RunAsync(stream, startDate ?? clock.Today, clock.Today, commit));
+        }
+        catch (ImportFileException ex)
+        {
+            return Http.Invalid("file", ex.Message);
+        }
     }
 
     static async Task<IResult> Get(int id, AppDbContext db, GroupAccess access, AppClock clock)

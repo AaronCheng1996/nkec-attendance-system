@@ -168,3 +168,25 @@ export interface MinistryDetail {
   isActive: boolean
   groups: GroupDetail[]
 }
+
+export type ImportRowStatus = 'New' | 'Duplicate' | 'Error'
+
+export interface ImportRow {
+  row: number
+  name: string
+  groupName: string | null
+  gender: Gender
+  birthDate: string | null
+  grade: number | null
+  phone: string | null
+  status: ImportRowStatus
+  messages: string[]
+}
+
+export interface ImportResult {
+  committed: boolean
+  newCount: number
+  duplicateCount: number
+  errorCount: number
+  rows: ImportRow[]
+}

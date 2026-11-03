@@ -5,12 +5,14 @@ import { api, errorMessage } from '../api/client'
 import type { Gender, Group, PersonListItem } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { age, genderLabel, gradeLabel, gradeOptions, today } from '../format'
+import { PeopleImport } from './PeopleImport'
 
 export function PeoplePage() {
   const [search, setSearch] = useState('')
   const [groupId, setGroupId] = useState('')
   const [includeInactive, setIncludeInactive] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const { hasRole } = useAuth()
   const deferredSearch = useDeferredValue(search.trim())
@@ -32,9 +34,14 @@ export function PeoplePage() {
     <main className="page">
       <div className="section-head">
         <h1>成員管理</h1>
-        <button type="button" onClick={() => setAdding(true)} disabled={!groups.data?.length}>
-          ＋新增成員
-        </button>
+        <div className="row-actions">
+          <button type="button" className="secondary" onClick={() => setImporting(true)} disabled={!groups.data?.length}>
+            匯入 Excel
+          </button>
+          <button type="button" onClick={() => setAdding(true)} disabled={!groups.data?.length}>
+            ＋新增成員
+          </button>
+        </div>
       </div>
       {groups.data?.length === 0 && (
         <p className="muted">
@@ -44,6 +51,14 @@ export function PeoplePage() {
         </p>
       )}
       {message && <p className="muted">{message}</p>}
+      {importing && (
+        <PeopleImport
+          onDone={(result) => {
+            setImporting(false)
+            if (result) setMessage(result)
+          }}
+        />
+      )}
       {adding && groups.data && (
         <NewPersonForm
           groups={groups.data}
