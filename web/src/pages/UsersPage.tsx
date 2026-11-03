@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { api, errorMessage } from '../api/client'
 import type { Ministry, Role, UserDto } from '../api/types'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../auth/useAuth'
 import { roleLabel } from '../format'
 
 type Editing = { mode: 'create' } | { mode: 'edit'; user: UserDto } | null

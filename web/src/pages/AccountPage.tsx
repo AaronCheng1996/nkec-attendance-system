@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { api, errorMessage } from '../api/client'
 import type { LoginResponse } from '../api/types'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../auth/useAuth'
 
 export function AccountPage() {
   const { user, setSession } = useAuth()

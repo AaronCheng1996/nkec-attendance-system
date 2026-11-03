@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import type { Role } from '../api/types'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 
 export function RequireAuth({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const { user, hasRole } = useAuth()

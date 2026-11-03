@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../auth/useAuth'
 
 export function HomePage() {
   const { user, hasRole } = useAuth()

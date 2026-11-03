@@ -1,16 +1,8 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { api, getToken, onUnauthorized, setToken } from '../api/client'
 import type { CurrentUser, LoginResponse, Role } from '../api/types'
+import { AuthContext } from './useAuth'
 
-interface AuthState {
-  user: CurrentUser | null
-  login: (userName: string, password: string) => Promise<void>
-  setSession: (session: LoginResponse) => void
-  logout: () => void
-  hasRole: (...roles: Role[]) => boolean
-}
-
-const AuthContext = createContext<AuthState | null>(null)
 const USER_KEY = 'rollcall.user'
 
 function loadUser(): CurrentUser | null {
@@ -66,10 +58,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, login, setSession, logout, hasRole }}>{children}</AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside AuthProvider')
-  return ctx
 }
