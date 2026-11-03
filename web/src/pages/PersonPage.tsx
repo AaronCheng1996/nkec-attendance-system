@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, errorMessage } from '../api/client'
 import type { Gender, Group, PersonDetail } from '../api/types'
-import { age, relationLabel, statusLabel, today } from '../format'
+import { age, gradeOptions, relationLabel, statusLabel, today } from '../format'
 
 export function PersonPage() {
   const id = Number(useParams().id)
@@ -65,6 +65,7 @@ function EditPerson({ person }: { person: PersonDetail }) {
     nickname: person.nickname ?? '',
     gender: person.gender,
     birthDate: person.birthDate ?? '',
+    grade: person.grade === null ? '' : String(person.grade),
     phone: person.phone ?? '',
     email: person.email ?? '',
     notes: person.notes ?? '',
@@ -76,7 +77,11 @@ function EditPerson({ person }: { person: PersonDetail }) {
     mutationFn: () =>
       api(`/people/${person.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ ...form, birthDate: form.birthDate || null }),
+        body: JSON.stringify({
+          ...form,
+          birthDate: form.birthDate || null,
+          grade: form.grade === '' ? null : Number(form.grade),
+        }),
       }),
     onSuccess: () => {
       setMessage('已儲存')
@@ -119,6 +124,17 @@ function EditPerson({ person }: { person: PersonDetail }) {
         <label>
           生日
           <input type="date" value={form.birthDate} max={today()} onChange={(e) => set('birthDate', e.target.value)} />
+        </label>
+        <label>
+          年級
+          <select value={form.grade} onChange={(e) => set('grade', e.target.value)}>
+            <option value="">未填</option>
+            {gradeOptions.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           電話

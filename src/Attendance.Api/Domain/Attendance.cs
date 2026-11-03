@@ -18,6 +18,9 @@ public class Session
     public string? Title { get; set; }
     public bool IsCancelled { get; set; }
 
+    /// <summary>預留：聚會主題、停課原因等。</summary>
+    public string? Notes { get; set; }
+
     public List<AttendanceRecord> Records { get; set; } = [];
 }
 
@@ -33,6 +36,9 @@ public class AttendanceRecord
 
     /// <summary>點名當天不是群組成員（例如已換組的人回來參加）。</summary>
     public bool IsVisitor { get; set; }
+
+    /// <summary>預留：請假原因等。</summary>
+    public string? Note { get; set; }
 
     public string MarkedBy { get; set; } = "";
     public AppUser MarkedByUser { get; set; } = null!;

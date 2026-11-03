@@ -26,7 +26,7 @@ public static class ReportEndpoints
 
     public static void MapReportEndpoints(this IEndpointRouteBuilder api)
     {
-        var reports = api.MapGroup("/reports").RequireAuthorization(Policies.Manager);
+        var reports = api.MapGroup("/reports").RequireAuthorization(Policies.ViewReports);
         reports.MapGet("/summary", Summary);
         reports.MapGet("/absentees", Absentees);
         reports.MapGet("/newcomers", Newcomers);

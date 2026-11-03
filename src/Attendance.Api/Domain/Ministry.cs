@@ -28,6 +28,12 @@ public class Group
     public string? Description { get; set; }
     public DayOfWeek? DefaultDayOfWeek { get; set; }
     public TimeOnly? DefaultStartTime { get; set; }
+    public int SortOrder { get; set; }
+
+    /// <summary>適用年級範圍（預留：依年級分班、批次升班）。數值同 <see cref="Person.SchoolEntryYear"/> 推算出的年級。</summary>
+    public int? MinGrade { get; set; }
+    public int? MaxGrade { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public List<GroupMembership> Memberships { get; set; } = [];

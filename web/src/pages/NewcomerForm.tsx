@@ -1,17 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { errorMessage } from '../api/client'
 import type { NewcomerRequest } from '../api/types'
-import { today } from '../format'
+import { gradeOptions, today } from '../format'
 
 const empty: NewcomerRequest = {
   name: '',
-  nickname: '',
-  gender: 'Unknown',
   birthDate: null,
-  guardianName: '',
+  grade: null,
   guardianPhone: '',
-  guardianRelation: 'Mother',
-  notes: '',
   consent: false,
 }
 
@@ -52,18 +48,6 @@ export function NewcomerForm({
           <input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={50} required />
         </label>
         <label>
-          小名 / 英文名
-          <input value={form.nickname} onChange={(e) => set('nickname', e.target.value)} maxLength={50} />
-        </label>
-        <label>
-          性別
-          <select value={form.gender} onChange={(e) => set('gender', e.target.value as NewcomerRequest['gender'])}>
-            <option value="Unknown">未填</option>
-            <option value="Male">男</option>
-            <option value="Female">女</option>
-          </select>
-        </label>
-        <label>
           生日
           <input
             type="date"
@@ -73,22 +57,21 @@ export function NewcomerForm({
           />
         </label>
         <label>
-          家長姓名
-          <input value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} maxLength={50} />
-        </label>
-        <label>
-          關係
+          年級
           <select
-            value={form.guardianRelation}
-            onChange={(e) => set('guardianRelation', e.target.value as NewcomerRequest['guardianRelation'])}
+            value={form.grade ?? ''}
+            onChange={(e) => set('grade', e.target.value === '' ? null : Number(e.target.value))}
           >
-            <option value="Mother">母親</option>
-            <option value="Father">父親</option>
-            <option value="Guardian">其他監護人</option>
+            <option value="">未填</option>
+            {gradeOptions.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>
-          家長電話
+          聯絡電話
           <input
             type="tel"
             inputMode="tel"
@@ -96,10 +79,6 @@ export function NewcomerForm({
             onChange={(e) => set('guardianPhone', e.target.value)}
             maxLength={20}
           />
-        </label>
-        <label>
-          備註
-          <input value={form.notes} onChange={(e) => set('notes', e.target.value)} maxLength={500} />
         </label>
       </div>
       <label className="inline">

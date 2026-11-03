@@ -1,5 +1,7 @@
 # 資料表設計（初稿）
 
+標示「預留」的欄位已建立在資料庫，但目前沒有畫面使用。先建好是為了在正式資料進來前把結構定下來，減少之後的 Migration。
+
 ## ER 圖
 
 ```mermaid
@@ -28,8 +30,10 @@ erDiagram
 | DisplayName | nvarchar(50) | 顯示名稱 |
 | IsActive | bit | 停用後無法登入 |
 | CreatedAt | datetimeoffset | |
+| PersonId | int FK null | 預留：帳號對應的人員資料（同工本身也是 People 的一筆） |
 
 角色使用 Identity 的 AspNetRoles：`Admin`、`Coordinator`、`Leader`。
+Google / LINE 登入使用 Identity 內建的 AspNetUserLogins（已建立），不需額外欄位。
 
 ### Ministries 事工
 | 欄位 | 型別 | 說明 |
@@ -52,6 +56,8 @@ erDiagram
 | Description | nvarchar(200) | |
 | DefaultDayOfWeek | int null | 預設聚會星期 |
 | DefaultStartTime | time null | 預設聚會時間 |
+| SortOrder | int | 顯示順序 |
+| MinGrade / MaxGrade | int null | 預留：適用年級，供依年級分班、批次升班 |
 | IsActive | bit | |
 
 ### GroupLeaders 老師負責的群組
@@ -72,6 +78,12 @@ erDiagram
 | ConsentAt | datetimeoffset null | 家長同意時間 |
 | ConsentMethod | nvarchar(20) null | Paper / App |
 | Notes | nvarchar(500) null | |
+| SchoolEntryYear | int null | 入學年度：讀小一那年的學年度（西元），見下方「年級」 |
+| School | nvarchar(50) null | 預留：就讀學校 |
+| Address | nvarchar(200) null | 預留：地址 |
+| LineId | nvarchar(50) null | 預留：LINE ID |
+| MedicalNotes | nvarchar(500) null | 預留：健康 / 過敏，僅限 `ViewSensitiveInfo` 權限查看 |
+| ExternalId | nvarchar(50) null | 預留：外部編號，批次匯入時對應既有資料（有索引） |
 | CustomFields | nvarchar(max) null | 同工可自訂的延伸欄位（JSON，以 ISJSON 檢查約束確保格式；不用原生 json 型別，才能相容 SQL Server 2022） |
 | IsActive | bit | |
 | CreatedAt / CreatedBy / UpdatedAt / UpdatedBy | | |
@@ -107,6 +119,7 @@ PK(PersonId, RelatedPersonId)
 | StartTime | time null | |
 | Title | nvarchar(50) null | 特別聚會名稱，一般主日留空 |
 | IsCancelled | bit | 停課不計入統計 |
+| Notes | nvarchar(500) null | 預留：聚會主題、停課原因 |
 
 唯一索引：(GroupId, SessionDate, StartTime)
 
@@ -118,6 +131,7 @@ PK(PersonId, RelatedPersonId)
 | PersonId | int FK | |
 | Status | tinyint | 1 出席 / 2 缺席 / 3 請假 |
 | IsVisitor | bit | 非群組成員來訪（例如新朋友第一次） |
+| Note | nvarchar(200) null | 預留：請假原因 |
 | MarkedBy | string FK Users | |
 | MarkedAt | datetimeoffset | |
 
@@ -134,6 +148,15 @@ PK(PersonId, RelatedPersonId)
 | Changes | json | 變更前後值 |
 | IpAddress | varchar(45) | |
 | CreatedAt | datetimeoffset | |
+
+## 年級
+
+年級不直接存，而是存入學年度 `SchoolEntryYear`，顯示時依日期推算：
+
+- 學年度從 8 月 1 日開始；年級 = 該日期所在學年度 − 入學年度 + 1
+- 每年 8 月自動升一級，不必逐筆修改
+- 數值：1–6 國小、7–9 國中、10–12 高中；幼兒園 0 大班、-1 中班、-2 小班、-3 幼幼班
+- 程式見 `Services/SchoolGrade.cs`
 
 ## 點名規則
 

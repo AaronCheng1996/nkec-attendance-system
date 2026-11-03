@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Attendance.Api.Services;
 
 public record RosterPerson(
-    int PersonId, string Name, string? Nickname, Gender Gender, DateOnly? BirthDate, DateOnly? FirstVisitDate,
+    int PersonId, string Name, string? Nickname, Gender Gender, DateOnly? BirthDate, int? Grade, DateOnly? FirstVisitDate,
     bool IsVisitor, AttendanceStatus? Status);
 
 public record RollcallDto(
@@ -15,7 +15,7 @@ public record RollcallDto(
 public record RollcallItem(int PersonId, AttendanceStatus Status);
 
 public record NewcomerRequest(
-    string Name, string? Nickname, Gender Gender, DateOnly? BirthDate,
+    string Name, string? Nickname, Gender Gender, DateOnly? BirthDate, int? Grade,
     string? GuardianName, string? GuardianPhone, RelationType? GuardianRelation,
     string? Notes, bool Consent);
 
@@ -23,7 +23,7 @@ public class RollcallService(AppDbContext db)
 {
     record RecordRow(
         int PersonId, AttendanceStatus Status, DateTimeOffset MarkedAt, string MarkedByName,
-        string Name, string? Nickname, Gender Gender, DateOnly? BirthDate, DateOnly? FirstVisitDate);
+        string Name, string? Nickname, Gender Gender, DateOnly? BirthDate, int? SchoolEntryYear, DateOnly? FirstVisitDate);
 
     public IQueryable<GroupMembership> ActiveMemberships(int groupId, DateOnly date) =>
         db.GroupMemberships.Where(m =>
@@ -58,7 +58,7 @@ public class RollcallService(AppDbContext db)
         var members = await ActiveMemberships(group.Id, date)
             .Select(m => new RosterPerson(
                 m.PersonId, m.Person.Name, m.Person.Nickname, m.Person.Gender, m.Person.BirthDate,
-                m.Person.FirstVisitDate, false, null))
+                SchoolGrade.Grade(m.Person.SchoolEntryYear, date), m.Person.FirstVisitDate, false, null))
             .ToListAsync();
 
         var session = await FindSessionAsync(group, date);
@@ -68,7 +68,8 @@ public class RollcallService(AppDbContext db)
                 .Where(r => r.SessionId == session.Id)
                 .Select(r => new RecordRow(
                     r.PersonId, r.Status, r.MarkedAt, r.MarkedByUser.DisplayName,
-                    r.Person.Name, r.Person.Nickname, r.Person.Gender, r.Person.BirthDate, r.Person.FirstVisitDate))
+                    r.Person.Name, r.Person.Nickname, r.Person.Gender, r.Person.BirthDate, r.Person.SchoolEntryYear,
+                    r.Person.FirstVisitDate))
                 .ToListAsync();
 
         var recordById = records.ToDictionary(r => r.PersonId);
@@ -79,7 +80,9 @@ public class RollcallService(AppDbContext db)
         var memberIds = people.Select(p => p.PersonId).ToHashSet();
         people.AddRange(records
             .Where(r => !memberIds.Contains(r.PersonId))
-            .Select(r => new RosterPerson(r.PersonId, r.Name, r.Nickname, r.Gender, r.BirthDate, r.FirstVisitDate, true, r.Status)));
+            .Select(r => new RosterPerson(
+                r.PersonId, r.Name, r.Nickname, r.Gender, r.BirthDate, SchoolGrade.Grade(r.SchoolEntryYear, date),
+                r.FirstVisitDate, true, r.Status)));
         people.Sort((a, b) => NameOrder.Comparer.Compare(a.Name, b.Name));
 
         var last = records.MaxBy(r => r.MarkedAt);
@@ -147,6 +150,7 @@ public class RollcallService(AppDbContext db)
             Nickname = Clean(req.Nickname),
             Gender = req.Gender,
             BirthDate = req.BirthDate,
+            SchoolEntryYear = req.Grade is { } grade ? SchoolGrade.EntryYear(grade, date) : null,
             FirstVisitDate = date,
             Notes = Clean(req.Notes),
             ConsentAt = now,

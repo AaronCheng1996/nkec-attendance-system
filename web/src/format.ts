@@ -35,6 +35,22 @@ export function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+const chineseNumber = ['', '一', '二', '三', '四', '五', '六']
+
+/** Grade numbers used by the API: 1–6 elementary, 7–9 junior high, 10–12 senior high, 0 to -3 kindergarten. */
+export function gradeLabel(grade: number | null): string | null {
+  if (grade === null) return null
+  if (grade < -3) return '幼兒'
+  if (grade <= 0) return ['幼幼班', '小班', '中班', '大班'][grade + 3]
+  if (grade <= 6) return `小${chineseNumber[grade]}`
+  if (grade <= 9) return `國${chineseNumber[grade - 6]}`
+  if (grade <= 12) return `高${chineseNumber[grade - 9]}`
+  return '大專以上'
+}
+
+/** Choices for grade pickers, youngest first. */
+export const gradeOptions = Array.from({ length: 16 }, (_, i) => i - 3).map((g) => ({ value: g, label: gradeLabel(g)! }))
+
 export const genderLabel: Record<Gender, string> = { Unknown: '未填', Male: '男', Female: '女' }
 export const statusLabel: Record<AttendanceStatus, string> = { Present: '出席', Absent: '缺席', Excused: '請假' }
 export const relationLabel: Record<RelationType, string> = { Father: '父親', Mother: '母親', Guardian: '監護人' }

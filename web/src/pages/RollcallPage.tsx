@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '../api/client'
 import type { AttendanceStatus, Group, NewcomerRequest, Rollcall } from '../api/types'
-import { age, formatDateTime, formatTime, genderLabel, isNewcomer, statusLabel, today } from '../format'
+import { age, formatDateTime, formatTime, genderLabel, gradeLabel, isNewcomer, statusLabel, today } from '../format'
 import { NewcomerForm } from './NewcomerForm'
 
 const LAST_GROUP_KEY = 'rollcall.lastGroupId'
@@ -168,7 +168,7 @@ function RollcallSheet({ data }: { data: Rollcall }) {
                   <strong>{p.name}</strong>
                   {p.nickname && <span className="muted">（{p.nickname}）</span>}
                   <small className="muted">
-                    {[years !== null ? `${years} 歲` : null, p.gender !== 'Unknown' ? genderLabel[p.gender] : null]
+                    {[gradeLabel(p.grade), years !== null ? `${years} 歲` : null, p.gender !== 'Unknown' ? genderLabel[p.gender] : null]
                       .filter(Boolean)
                       .join('・')}
                     {isNewcomer(p.firstVisitDate, data.date) && <span className="badge">新朋友</span>}

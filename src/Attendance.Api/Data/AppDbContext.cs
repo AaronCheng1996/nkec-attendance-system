@@ -30,7 +30,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAc
     {
         base.OnModelCreating(b);
 
-        b.Entity<AppUser>(e => e.Property(x => x.DisplayName).HasMaxLength(50));
+        // Automated tests run on SQLite, which lacks ISJSON and rowversion.
+        var isSqlServer = Database.IsSqlServer();
+
+        b.Entity<AppUser>(e =>
+        {
+            e.Property(x => x.DisplayName).HasMaxLength(50);
+            e.HasOne<Person>().WithMany().HasForeignKey(x => x.PersonId);
+        });
 
         b.Entity<Ministry>(e => e.Property(x => x.Name).HasMaxLength(50));
 
@@ -57,19 +64,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAc
 
         b.Entity<Person>(e =>
         {
-            e.ToTable("People", t => t.HasCheckConstraint(
-                "CK_People_CustomFields_IsJson", "[CustomFields] IS NULL OR ISJSON([CustomFields]) = 1"));
+            e.ToTable("People", t =>
+            {
+                if (isSqlServer)
+                    t.HasCheckConstraint("CK_People_CustomFields_IsJson", "[CustomFields] IS NULL OR ISJSON([CustomFields]) = 1");
+            });
             e.Property(x => x.Name).HasMaxLength(50);
             e.Property(x => x.Nickname).HasMaxLength(50);
             e.Property(x => x.Phone).HasMaxLength(20).IsUnicode(false);
             e.Property(x => x.Email).HasMaxLength(100);
             e.Property(x => x.ConsentMethod).HasMaxLength(20);
             e.Property(x => x.Notes).HasMaxLength(500);
+            e.Property(x => x.School).HasMaxLength(50);
+            e.Property(x => x.Address).HasMaxLength(200);
+            e.Property(x => x.LineId).HasMaxLength(50);
+            e.Property(x => x.MedicalNotes).HasMaxLength(500);
+            e.Property(x => x.ExternalId).HasMaxLength(50);
             e.Property(x => x.CreatedBy).HasMaxLength(450);
             e.Property(x => x.UpdatedBy).HasMaxLength(450);
-            e.Property(x => x.RowVersion).IsRowVersion();
+            if (isSqlServer) e.Property(x => x.RowVersion).IsRowVersion();
+            else e.Ignore(x => x.RowVersion);
             e.HasIndex(x => x.Name);
             e.HasIndex(x => x.FirstVisitDate);
+            e.HasIndex(x => x.ExternalId);
         });
 
         b.Entity<PersonRelationship>(e =>
@@ -89,6 +106,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAc
         b.Entity<Session>(e =>
         {
             e.Property(x => x.Title).HasMaxLength(50);
+            e.Property(x => x.Notes).HasMaxLength(500);
             e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId);
             // One session per group/date/time. HasFilter(null) makes a NULL StartTime count as a value too.
             e.HasIndex(x => new { x.GroupId, x.SessionDate, x.StartTime }).IsUnique().HasFilter(null);
@@ -96,6 +114,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, IHttpContextAc
 
         b.Entity<AttendanceRecord>(e =>
         {
+            e.Property(x => x.Note).HasMaxLength(200);
             e.HasOne(x => x.Session).WithMany(x => x.Records).HasForeignKey(x => x.SessionId);
             e.HasOne(x => x.Person).WithMany().HasForeignKey(x => x.PersonId);
             e.HasOne(x => x.MarkedByUser).WithMany().HasForeignKey(x => x.MarkedBy);

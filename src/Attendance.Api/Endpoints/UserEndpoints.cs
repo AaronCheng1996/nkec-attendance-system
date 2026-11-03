@@ -21,7 +21,7 @@ public static class UserEndpoints
 
     public static void MapUserEndpoints(this IEndpointRouteBuilder api)
     {
-        var users = api.MapGroup("/users").RequireAuthorization(Policies.Admin);
+        var users = api.MapGroup("/users").RequireAuthorization(Policies.ManageUsers);
         users.MapGet("/", List);
         users.MapPost("/", Create);
         users.MapPut("/{id}", Update);

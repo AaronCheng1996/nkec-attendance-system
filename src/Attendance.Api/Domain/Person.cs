@@ -29,6 +29,20 @@ public class Person
     public string? ConsentMethod { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>入學年度：讀小一那年的學年度（西元）。年級由此推算，見 <see cref="Services.SchoolGrade"/>。</summary>
+    public int? SchoolEntryYear { get; set; }
+
+    // 以下為預留欄位，目前沒有畫面使用。
+    public string? School { get; set; }
+    public string? Address { get; set; }
+    public string? LineId { get; set; }
+
+    /// <summary>健康 / 過敏等敏感資料，只給 <see cref="Auth.Policies.ViewSensitiveInfo"/> 查看。</summary>
+    public string? MedicalNotes { get; set; }
+
+    /// <summary>外部編號，批次匯入時用來對應既有資料。</summary>
+    public string? ExternalId { get; set; }
+
     /// <summary>同工自訂的延伸欄位（JSON）。</summary>
     public string? CustomFields { get; set; }
 

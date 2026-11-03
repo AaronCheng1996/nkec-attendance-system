@@ -19,7 +19,7 @@ public static class GroupEndpoints
     public static void MapGroupEndpoints(this IEndpointRouteBuilder api)
     {
         api.MapGet("/groups", ListGroups);
-        api.MapGet("/ministries", ListMinistries).RequireAuthorization(Policies.Manager);
+        api.MapGet("/ministries", ListMinistries).RequireAuthorization(Policies.ManagePeople);
 
         var group = api.MapGroup("/groups/{groupId:int}");
         group.MapGet("/rollcall", GetRollcall);
@@ -75,6 +75,7 @@ public static class GroupEndpoints
             return Http.Invalid("name", "姓名最多 50 個字");
         if (Http.TooLong(req.GuardianPhone, 20)) return Http.Invalid("guardianPhone", "電話格式不正確");
         if (Http.TooLong(req.Notes, 500)) return Http.Invalid("notes", "備註最多 500 個字");
+        if (!SchoolGrade.IsValid(req.Grade)) return Http.Invalid("grade", "年級不正確");
         if (!req.Consent) return Http.Invalid("consent", "需取得家長同意才能登記個人資料");
 
         var group = await access.FindGroupAsync(groupId);

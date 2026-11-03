@@ -26,4 +26,10 @@ public class GroupAccess(AppDbContext db, IHttpContextAccessor http)
     public IQueryable<int> GroupIds() => Groups().Select(g => g.Id);
 
     public Task<Group?> FindGroupAsync(int groupId) => Groups().FirstOrDefaultAsync(g => g.Id == groupId);
+
+    /// <summary>
+    /// People the current user may manage. For now every Admin / Coordinator manages everyone;
+    /// to limit coordinators to their own ministries, filter here and every people endpoint follows.
+    /// </summary>
+    public IQueryable<Person> People() => db.People;
 }

@@ -3,7 +3,7 @@ import { useDeferredValue, useState } from 'react'
 import { Link } from 'react-router'
 import { api, errorMessage } from '../api/client'
 import type { Group, PersonListItem } from '../api/types'
-import { age, genderLabel } from '../format'
+import { age, genderLabel, gradeLabel } from '../format'
 
 export function PeoplePage() {
   const [search, setSearch] = useState('')
@@ -54,6 +54,7 @@ export function PeoplePage() {
                   <th>姓名</th>
                   <th>性別</th>
                   <th>年齡</th>
+                  <th>年級</th>
                   <th>目前群組</th>
                   <th>第一次來</th>
                 </tr>
@@ -68,6 +69,7 @@ export function PeoplePage() {
                     </td>
                     <td>{genderLabel[p.gender]}</td>
                     <td>{age(p.birthDate) ?? '—'}</td>
+                    <td>{gradeLabel(p.grade) ?? '—'}</td>
                     <td>{p.groups.join('、') || '—'}</td>
                     <td>{p.firstVisitDate ?? '—'}</td>
                   </tr>

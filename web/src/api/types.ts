@@ -37,6 +37,7 @@ export interface RosterPerson {
   nickname: string | null
   gender: Gender
   birthDate: string | null
+  grade: number | null
   firstVisitDate: string | null
   isVisitor: boolean
   status: AttendanceStatus | null
@@ -55,13 +56,10 @@ export interface Rollcall {
 
 export interface NewcomerRequest {
   name: string
-  nickname: string
-  gender: Gender
   birthDate: string | null
-  guardianName: string
+  grade: number | null
+  /** 聯絡電話。沒有填家長姓名時存在孩子本人的資料上，關懷名單會顯示。 */
   guardianPhone: string
-  guardianRelation: RelationType
-  notes: string
   consent: boolean
 }
 
@@ -71,6 +69,7 @@ export interface PersonListItem {
   nickname: string | null
   gender: Gender
   birthDate: string | null
+  grade: number | null
   firstVisitDate: string | null
   isActive: boolean
   groups: string[]
@@ -82,6 +81,7 @@ export interface PersonDetail {
   nickname: string | null
   gender: Gender
   birthDate: string | null
+  grade: number | null
   phone: string | null
   email: string | null
   firstVisitDate: string | null

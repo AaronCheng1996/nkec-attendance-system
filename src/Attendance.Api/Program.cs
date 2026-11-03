@@ -62,9 +62,8 @@ builder.Services
         o.Events = new JwtBearerEvents { OnTokenValidated = TokenService.ValidateUserAsync };
     });
 
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(Policies.Admin, p => p.RequireRole(Roles.Admin))
-    .AddPolicy(Policies.Manager, p => p.RequireRole(Roles.Admin, Roles.Coordinator));
+builder.Services.AddAuthorizationBuilder().AddAppPolicies();
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 
 builder.Services.AddRateLimiter(o =>
 {
@@ -94,6 +93,10 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+
+// For deploy scripts and monitoring: is the app up and the database reachable, and which build is running.
+app.MapHealthChecks("/healthz");
+app.MapGet("/api/version", (IConfiguration config) => new { Version = config["App:Version"] ?? "dev" });
 
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuthEndpoints();
