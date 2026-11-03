@@ -20,15 +20,21 @@ export function HomePage() {
             </Link>
             <Link className="card" to="/admin/people">
               成員管理
-              <small>查詢與編輯成員資料、升班換組</small>
+              <small>新增、查詢與編輯成員資料、升班換組</small>
             </Link>
           </>
         )}
         {hasRole('Admin') && (
-          <Link className="card" to="/admin/users">
-            帳號管理
-            <small>老師與同工的帳號、角色與負責群組</small>
-          </Link>
+          <>
+            <Link className="card" to="/admin/groups">
+              事工與群組
+              <small>新增與編輯事工、班級 / 小組、聚會時間</small>
+            </Link>
+            <Link className="card" to="/admin/users">
+              帳號管理
+              <small>老師與同工的帳號、角色與負責群組</small>
+            </Link>
+          </>
         )}
       </nav>
     </main>

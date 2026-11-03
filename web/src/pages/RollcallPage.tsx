@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { api, errorMessage } from '../api/client'
 import type { AttendanceStatus, Group, NewcomerRequest, Rollcall } from '../api/types'
 import { age, formatDateTime, formatTime, genderLabel, gradeLabel, isNewcomer, statusLabel, today } from '../format'
+import { useAuth } from '../auth/useAuth'
 import { NewcomerForm } from './NewcomerForm'
 
 const LAST_GROUP_KEY = 'rollcall.lastGroupId'
@@ -18,6 +20,7 @@ function loadLastGroup(): number | null {
 
 export function RollcallPage() {
   const groups = useQuery({ queryKey: ['groups'], queryFn: () => api<Group[]>('/groups') })
+  const { hasRole } = useAuth()
   const [groupId, setGroupId] = useState<number | null>(loadLastGroup)
   const [date, setDate] = useState(today)
 
@@ -41,7 +44,19 @@ export function RollcallPage() {
 
   if (groups.isPending) return <main className="page">載入中…</main>
   if (groups.isError) return <main className="page error">{errorMessage(groups.error)}</main>
-  if (!group) return <main className="page">您目前沒有負責的群組，請聯絡管理員設定。</main>
+  if (!group)
+    return (
+      <main className="page">
+        {hasRole('Admin') ? (
+          <>
+            還沒有任何群組，請先到<Link to="/admin/groups">事工與群組</Link>建立班級，再到
+            <Link to="/admin/people">成員管理</Link>加入成員。
+          </>
+        ) : (
+          '您目前沒有負責的群組，請聯絡管理員設定。'
+        )}
+      </main>
+    )
 
   return (
     <main className="page rollcall-page">

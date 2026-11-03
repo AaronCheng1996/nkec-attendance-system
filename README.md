@@ -113,7 +113,9 @@ dotnet ef migrations add <變更名稱> -o Data/Migrations
 | GET / PUT | `/api/groups/{id}/rollcall?date=` | 該群組的老師 / 主責 / 管理員 |
 | POST | `/api/groups/{id}/newcomers?date=` | 同上 |
 | GET | `/api/ministries` | 主責、管理員 |
-| GET / PUT | `/api/people`、`/api/people/{id}` | 主責、管理員 |
+| GET | `/api/organization`（含停用的事工 / 群組） | 管理員 |
+| POST / PUT | `/api/ministries`、`/api/groups` | 管理員 |
+| GET / POST / PUT | `/api/people`、`/api/people/{id}` | 主責、管理員 |
 | POST | `/api/people/{id}/move` | 主責、管理員 |
 | DELETE | `/api/people/{id}/memberships/{mid}` | 主責、管理員 |
 | GET | `/api/reports/summary`、`absentees`、`newcomers`、`export` | 主責、管理員 |

@@ -27,10 +27,16 @@ public static class PeopleEndpoints
 
     public record MovePersonRequest(int GroupId, DateOnly StartDate);
 
+    /// <summary>An existing member entered by staff (newcomers are registered from the roll call page instead).</summary>
+    public record CreatePersonRequest(
+        string Name, Gender Gender, DateOnly? BirthDate, int? Grade, string? Phone, string? Notes,
+        int GroupId, DateOnly? StartDate, bool Consent);
+
     public static void MapPeopleEndpoints(this IEndpointRouteBuilder api)
     {
         var people = api.MapGroup("/people").RequireAuthorization(Policies.ManagePeople);
         people.MapGet("/", List);
+        people.MapPost("/", Create);
         people.MapGet("/{id:int}", Get);
         people.MapPut("/{id:int}", Update);
         people.MapPost("/{id:int}/move", Move);
@@ -64,6 +70,39 @@ public static class PeopleEndpoints
                     .Select(m => m.Group.Name)
                     .ToList()))
             .ToListAsync();
+    }
+
+    static async Task<IResult> Create(CreatePersonRequest req, AppDbContext db, GroupAccess access, AppClock clock)
+    {
+        if (string.IsNullOrWhiteSpace(req.Name)) return Http.Invalid("name", "請輸入姓名");
+        if (Http.TooLong(req.Name, 50)) return Http.Invalid("name", "姓名最多 50 個字");
+        if (Http.TooLong(req.Phone, 20)) return Http.Invalid("phone", "電話格式不正確");
+        if (Http.TooLong(req.Notes, 500)) return Http.Invalid("notes", "備註最多 500 個字");
+        if (!SchoolGrade.IsValid(req.Grade)) return Http.Invalid("grade", "年級不正確");
+        if (!Enum.IsDefined(req.Gender)) return Http.Invalid("gender", "性別不正確");
+        if (!req.Consent) return Http.Invalid("consent", "需取得家長同意才能登記個人資料");
+
+        var today = clock.Today;
+        // A group is required: the people list only shows people who belong to one.
+        var group = await access.FindGroupAsync(req.GroupId);
+        if (group is null) return Http.Invalid("groupId", "請選擇群組");
+
+        var person = new Person
+        {
+            Name = req.Name.Trim(),
+            Gender = req.Gender,
+            BirthDate = req.BirthDate,
+            SchoolEntryYear = req.Grade is { } grade ? SchoolGrade.EntryYear(grade, today) : null,
+            Phone = Clean(req.Phone),
+            Notes = Clean(req.Notes),
+            ConsentAt = DateTimeOffset.UtcNow,
+            ConsentMethod = "Paper",
+        };
+        db.People.Add(person);
+        db.GroupMemberships.Add(new GroupMembership { Group = group, Person = person, StartDate = req.StartDate ?? today });
+
+        await db.SaveChangesAsync();
+        return Results.Created($"/api/people/{person.Id}", new { person.Id });
     }
 
     static async Task<IResult> Get(int id, AppDbContext db, GroupAccess access, AppClock clock)

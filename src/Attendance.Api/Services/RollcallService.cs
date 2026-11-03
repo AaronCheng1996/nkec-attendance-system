@@ -29,9 +29,14 @@ public class RollcallService(AppDbContext db)
         db.GroupMemberships.Where(m =>
             m.GroupId == groupId && m.StartDate <= date && (m.EndDate == null || m.EndDate >= date) && m.Person.IsActive);
 
+    /// <summary>The group's session on that date. Prefers the one at the default time, but still finds the
+    /// day's session after the group's meeting time was changed.</summary>
     Task<Session?> FindSessionAsync(Group group, DateOnly date) =>
-        db.Sessions.FirstOrDefaultAsync(s =>
-            s.GroupId == group.Id && s.SessionDate == date && s.StartTime == group.DefaultStartTime);
+        db.Sessions
+            .Where(s => s.GroupId == group.Id && s.SessionDate == date)
+            .OrderByDescending(s => s.StartTime == group.DefaultStartTime)
+            .ThenBy(s => s.Id)
+            .FirstOrDefaultAsync();
 
     async Task<Session> GetOrCreateSessionAsync(Group group, DateOnly date)
     {

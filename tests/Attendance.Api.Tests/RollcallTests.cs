@@ -67,6 +67,23 @@ public class RollcallTests(ApiFactory app) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Changing_the_meeting_time_keeps_that_days_marks()
+    {
+        var (group, client) = await GroupWithLeaderAsync();
+        var person = await app.AddMemberAsync(group.Id, "甲");
+        (await client.PutAsJsonAsync(Url(group.Id), Marks((person, AttendanceStatus.Present)), Json, Ct)).EnsureSuccessStatusCode();
+
+        await app.WithDbAsync(async db =>
+        {
+            (await db.Groups.FindAsync(group.Id))!.DefaultStartTime = new TimeOnly(10, 30);
+            await db.SaveChangesAsync();
+        });
+
+        var roll = await client.GetFromJsonAsync<RollcallDto>(Url(group.Id), Json, Ct);
+        Assert.Equal(AttendanceStatus.Present, Assert.Single(roll!.People).Status);
+    }
+
+    [Fact]
     public async Task People_outside_the_group_are_rejected()
     {
         var (group, client) = await GroupWithLeaderAsync();

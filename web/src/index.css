@@ -296,7 +296,8 @@ th {
   font-weight: 500;
 }
 
-tr.inactive td {
+tr.inactive td,
+.panel.inactive > * {
   opacity: 0.55;
 }
 

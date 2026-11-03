@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Attendance.Api.Auth;
 using Attendance.Api.Endpoints;
@@ -23,6 +24,41 @@ public class PeopleTests(ApiFactory app) : IClassFixture<ApiFactory>
         var people = await client.GetFromJsonAsync<List<PeopleEndpoints.PersonListItem>>("/api/people?search=搜尋測試", Json, Ct);
 
         Assert.Equal([wanted], people!.Select(p => p.Id));
+    }
+
+    static object NewMember(int groupId, string name, bool consent = true) => new
+    {
+        name, gender = "Female", birthDate = "2019-03-01", grade = 2, phone = "0911222333", groupId, consent,
+    };
+
+    [Fact]
+    public async Task Staff_add_a_member_straight_into_a_group()
+    {
+        var group = await app.CreateGroupAsync();
+        var client = await app.ClientForAsync(Roles.Admin);
+
+        var res = await client.PostAsJsonAsync("/api/people", NewMember(group.Id, "手動新增"), Json, Ct);
+
+        Assert.Equal(HttpStatusCode.Created, res.StatusCode);
+        var roll = await client.GetFromJsonAsync<RollcallDto>(
+            $"/api/groups/{group.Id}/rollcall?date={app.Today:yyyy-MM-dd}", Json, Ct);
+        var member = Assert.Single(roll!.People);
+        Assert.Equal(("手動新增", 2), (member.Name, member.Grade));
+        // Not a newcomer: they were entered from an existing list, not on their first visit.
+        Assert.Null(member.FirstVisitDate);
+    }
+
+    [Fact]
+    public async Task New_members_need_consent_and_a_group()
+    {
+        var group = await app.CreateGroupAsync();
+        var client = await app.ClientForAsync(Roles.Admin);
+
+        var noConsent = await client.PostAsJsonAsync("/api/people", NewMember(group.Id, "甲", consent: false), Json, Ct);
+        var noGroup = await client.PostAsJsonAsync("/api/people", NewMember(99999, "乙"), Json, Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, noConsent.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, noGroup.StatusCode);
     }
 
     [Fact]

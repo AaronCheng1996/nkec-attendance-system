@@ -15,6 +15,7 @@ fi
 
 # Shell variables take precedence over a local deploy/.env, so real settings are never used here.
 export APP_IMAGE="$image"
+export COMPOSE_PROFILES=local-db
 export DB_SA_PASSWORD="Smoke-$(date +%s)-Aa1"
 export JWT_KEY="smoke-test-only-signing-key-0123456789"
 export ADMIN_USERNAME=admin

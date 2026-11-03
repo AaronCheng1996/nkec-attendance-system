@@ -144,3 +144,27 @@ export interface NewcomerStat {
   sessionsSince: number
   lastPresentDate: string | null
 }
+
+export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
+
+export interface GroupDetail {
+  id: number
+  ministryId: number
+  name: string
+  description: string | null
+  defaultDayOfWeek: DayOfWeek | null
+  defaultStartTime: string | null
+  sortOrder: number
+  minGrade: number | null
+  maxGrade: number | null
+  isActive: boolean
+  memberCount: number
+}
+
+export interface MinistryDetail {
+  id: number
+  name: string
+  sortOrder: number
+  isActive: boolean
+  groups: GroupDetail[]
+}

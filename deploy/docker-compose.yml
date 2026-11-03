@@ -1,13 +1,16 @@
 # 自架部署：app + SQL Server Express
 # 使用方式見 deploy/README.md。簡單來說：cp .env.example .env，填好設定後 docker compose up -d
 # app 的 image 從 Docker Hub 下載；要從原始碼自行建置，見 docker-compose.build.yml。
+# 資料庫：.env 設 COMPOSE_PROFILES=local-db 時一併啟動 SQL Server 容器；
+#        改用外部資料庫（例如 Azure SQL）時拿掉它，並設定 DB_CONNECTION_STRING。
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    profiles: [local-db]
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Express
-      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:?DB_SA_PASSWORD is required}
+      MSSQL_SA_PASSWORD: ${DB_SA_PASSWORD:-}
       MSSQL_MEMORY_LIMIT_MB: ${DB_MEMORY_LIMIT_MB:-2048}
     volumes:
       - mssql-data:/var/opt/mssql
@@ -24,8 +27,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+        # Not required: with an external database the db service is not started.
+        required: false
     environment:
-      ConnectionStrings__Default: "Server=db;Database=attendance;User Id=sa;Password=${DB_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True"
+      ConnectionStrings__Default: ${DB_CONNECTION_STRING:-Server=db;Database=attendance;User Id=sa;Password=${DB_SA_PASSWORD};Encrypt=True;TrustServerCertificate=True}
       Jwt__Key: ${JWT_KEY:?JWT_KEY is required}
       Seed__AdminUserName: ${ADMIN_USERNAME:-admin}
       Seed__AdminPassword: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}

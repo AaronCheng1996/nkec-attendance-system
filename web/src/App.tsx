@@ -5,6 +5,7 @@ import { AuthProvider } from './auth/AuthContext'
 import { useAuth } from './auth/useAuth'
 import { RequireAuth } from './auth/RequireAuth'
 import { AccountPage } from './pages/AccountPage'
+import { GroupsPage } from './pages/GroupsPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { PeoplePage } from './pages/PeoplePage'
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="/admin/people" element={<RequireAuth roles={[...managers]}><PeoplePage /></RequireAuth>} />
             <Route path="/admin/people/:id" element={<RequireAuth roles={[...managers]}><PersonPage /></RequireAuth>} />
             <Route path="/admin/reports" element={<RequireAuth roles={[...managers]}><ReportsPage /></RequireAuth>} />
+            <Route path="/admin/groups" element={<RequireAuth roles={['Admin']}><GroupsPage /></RequireAuth>} />
             <Route path="/admin/users" element={<RequireAuth roles={['Admin']}><UsersPage /></RequireAuth>} />
             <Route path="*" element={<Placeholder title="找不到頁面" />} />
           </Routes>

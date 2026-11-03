@@ -1,4 +1,4 @@
-import type { AttendanceStatus, Gender, RelationType, Role } from './api/types'
+import type { AttendanceStatus, DayOfWeek, Gender, RelationType, Role } from './api/types'
 
 /** Local calendar date as YYYY-MM-DD (the API's DateOnly format). */
 export function toDateString(d: Date): string {
@@ -55,3 +55,12 @@ export const genderLabel: Record<Gender, string> = { Unknown: '未填', Male: '�
 export const statusLabel: Record<AttendanceStatus, string> = { Present: '出席', Absent: '缺席', Excused: '請假' }
 export const relationLabel: Record<RelationType, string> = { Father: '父親', Mother: '母親', Guardian: '監護人' }
 export const roleLabel: Record<Role, string> = { Admin: '系統管理員', Coordinator: '主責同工', Leader: '老師' }
+export const dayLabel: Record<DayOfWeek, string> = {
+  Sunday: '週日',
+  Monday: '週一',
+  Tuesday: '週二',
+  Wednesday: '週三',
+  Thursday: '週四',
+  Friday: '週五',
+  Saturday: '週六',
+}

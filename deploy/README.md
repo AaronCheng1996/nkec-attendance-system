@@ -77,7 +77,26 @@ docker compose up -d app
 
 備份檔放在同一台主機上，請另外定期複製到其他地方（例如 `docker compose cp db:/var/opt/mssql/backup ./backup`）。
 
-## 五、正式上線前
+## 五、改用外部資料庫（例如 Azure SQL）
+
+預設會在主機上一起跑 SQL Server 容器。要改連現有的資料庫：
+
+1. 資料庫端允許主機連線。Azure SQL 的做法：Azure Portal → SQL Server → **Networking** → Firewall rules，加入主機的對外 IP
+2. 建議為這套系統建立專用的資料庫與帳號（`db_owner` 只給該資料庫即可，啟動時需要建立 / 修改資料表），不要使用伺服器管理員帳號
+3. 修改 `.env`：刪掉 `COMPOSE_PROFILES=local-db` 與 `DB_SA_PASSWORD`，加入
+
+   ```
+   DB_CONNECTION_STRING=Server=tcp:<伺服器>.database.windows.net,1433;Initial Catalog=<資料庫>;User ID=<帳號>;Password=<密碼>;Encrypt=True;
+   ```
+
+4. `docker compose up -d --remove-orphans`（`--remove-orphans` 會停掉不再使用的 SQL Server 容器；資料仍保留在 `mssql-data` volume，確定不需要後再用 `docker volume rm` 刪除）
+
+使用外部資料庫時 `update.sh` 不會備份資料庫，請使用資料庫本身的備份（Azure SQL 預設有時間點還原）。
+資料庫裡已經有帳號時，不會再用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 建立管理員，請用資料庫裡現有的帳號登入。
+
+> 主機上的 `docker-compose.yml`、`update.sh` 不會隨 image 自動更新；repo 裡這兩個檔案有修改時，需手動複製到主機。
+
+## 六、正式上線前
 
 - 在前面放反向代理（Caddy / Nginx）提供 HTTPS，並在 `.env` 設定 `BEHIND_PROXY=true`
 - 改用權限最小的資料庫帳號，不要讓 app 使用 `sa`

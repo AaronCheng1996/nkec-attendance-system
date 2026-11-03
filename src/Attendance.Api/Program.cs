@@ -101,6 +101,7 @@ app.MapGet("/api/version", (IConfiguration config) => new { Version = config["Ap
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapAuthEndpoints();
 api.MapGroupEndpoints();
+api.MapOrganizationEndpoints();
 api.MapPeopleEndpoints();
 api.MapUserEndpoints();
 api.MapReportEndpoints();

@@ -40,8 +40,14 @@ if [ "$running" = "$latest" ]; then
 fi
 
 # New versions may migrate the database on startup, so take a backup first.
+# Only the local SQL Server container is backed up; an external database has its own backups.
 stamp=$(date +%Y%m%d-%H%M%S)
-log "發現新版 $image，備份資料庫 attendance-$stamp.bak"
+backup=
+if [ -z "$(docker compose ps -q db 2>/dev/null)" ]; then
+  log "發現新版 $image；使用外部資料庫，略過備份（請使用資料庫本身的備份，例如 Azure SQL 的時間點還原）"
+else
+backup="attendance-$stamp.bak"
+log "發現新版 $image，備份資料庫 $backup"
 docker compose exec -T -e STAMP="$stamp" -e KEEP_DAYS="${KEEP_BACKUP_DAYS:-30}" db sh -s <<'EOF'
 set -e
 mkdir -p /var/opt/mssql/backup
@@ -49,6 +55,7 @@ mkdir -p /var/opt/mssql/backup
   -Q "BACKUP DATABASE [attendance] TO DISK = N'/var/opt/mssql/backup/attendance-$STAMP.bak' WITH INIT"
 find /var/opt/mssql/backup -name 'attendance-*.bak' -mtime +"$KEEP_DAYS" -delete
 EOF
+fi
 
 log "更新 app"
 docker compose up -d app
@@ -57,7 +64,7 @@ if wait_healthy; then
   log "更新完成：$(curl -fsS "$url/api/version")"
   docker image prune -f >/dev/null
 else
-  log "更新後 app 沒有正常啟動，請檢查以下紀錄；資料庫備份為 attendance-$stamp.bak"
+  log "更新後 app 沒有正常啟動，請檢查以下紀錄${backup:+；資料庫備份為 $backup}"
   docker compose logs --tail 80 app
   exit 1
 fi
