@@ -15,11 +15,12 @@ public class PeopleTests(ApiFactory app) : IClassFixture<ApiFactory>
     public async Task Search_finds_people_by_name()
     {
         var group = await app.CreateGroupAsync();
-        var wanted = await app.AddMemberAsync(group.Id, "王小明");
+        // Test classes share one database, so use a name no other test creates.
+        var wanted = await app.AddMemberAsync(group.Id, "王搜尋測試");
         await app.AddMemberAsync(group.Id, "李大華");
         var client = await app.ClientForAsync(Roles.Coordinator);
 
-        var people = await client.GetFromJsonAsync<List<PeopleEndpoints.PersonListItem>>("/api/people?search=小明", Json, Ct);
+        var people = await client.GetFromJsonAsync<List<PeopleEndpoints.PersonListItem>>("/api/people?search=搜尋測試", Json, Ct);
 
         Assert.Equal([wanted], people!.Select(p => p.Id));
     }
