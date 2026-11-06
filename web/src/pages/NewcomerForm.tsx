@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { errorMessage } from '../api/client'
-import type { NewcomerRequest } from '../api/types'
-import { gradeOptions, today } from '../format'
+import type { NewcomerRequest, RelationType } from '../api/types'
+import { gradeOptions, relationLabel, today } from '../format'
 
 const empty: NewcomerRequest = {
   name: '',
   birthDate: null,
   grade: null,
+  guardianName: '',
+  guardianRelation: 'Mother',
   guardianPhone: '',
   consent: false,
 }
@@ -71,7 +73,25 @@ export function NewcomerForm({
           </select>
         </label>
         <label>
-          聯絡電話
+          家長姓名
+          <input value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} maxLength={50} />
+        </label>
+        <label>
+          家長關係
+          <select
+            value={form.guardianRelation}
+            onChange={(e) => set('guardianRelation', e.target.value as RelationType)}
+            disabled={!form.guardianName.trim()}
+          >
+            {Object.entries(relationLabel).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {form.guardianName.trim() ? '家長電話' : '聯絡電話'}
           <input
             type="tel"
             inputMode="tel"

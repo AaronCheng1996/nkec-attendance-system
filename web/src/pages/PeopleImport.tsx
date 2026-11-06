@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { api, download, errorMessage } from '../api/client'
 import type { ImportResult, ImportRowStatus } from '../api/types'
-import { genderLabel, gradeLabel, today } from '../format'
+import { genderLabel, gradeLabel, relationLabel, today } from '../format'
 
 const statusLabel: Record<ImportRowStatus, string> = { New: '新增', Duplicate: '已存在，略過', Error: '錯誤' }
 
@@ -116,6 +116,7 @@ export function PeopleImport({ onDone }: { onDone: (message?: string) => void })
                   <th>性別</th>
                   <th>生日</th>
                   <th>年級</th>
+                  <th>家長</th>
                   <th>電話</th>
                   <th>結果</th>
                 </tr>
@@ -129,6 +130,11 @@ export function PeopleImport({ onDone }: { onDone: (message?: string) => void })
                     <td>{r.gender === 'Unknown' ? '—' : genderLabel[r.gender]}</td>
                     <td>{r.birthDate ?? '—'}</td>
                     <td>{gradeLabel(r.grade) ?? '—'}</td>
+                    <td>
+                      {r.guardianName
+                        ? `${r.guardianName}（${relationLabel[r.guardianRelation ?? 'Guardian']}）`
+                        : '—'}
+                    </td>
                     <td>{r.phone ?? '—'}</td>
                     <td>
                       <span className={r.status === 'Error' ? 'error' : r.status === 'New' ? '' : 'muted'}>

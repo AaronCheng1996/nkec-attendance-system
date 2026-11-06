@@ -76,6 +76,8 @@ public static class GroupEndpoints
         if (Http.TooLong(req.GuardianPhone, 20)) return Http.Invalid("guardianPhone", "電話格式不正確");
         if (Http.TooLong(req.Notes, 500)) return Http.Invalid("notes", "備註最多 500 個字");
         if (!SchoolGrade.IsValid(req.Grade)) return Http.Invalid("grade", "年級不正確");
+        if (req.GuardianRelation is { } relation && !Enum.IsDefined(relation))
+            return Http.Invalid("guardianRelation", "家長關係不正確");
         if (!req.Consent) return Http.Invalid("consent", "需取得家長同意才能登記個人資料");
 
         var group = await access.FindGroupAsync(groupId);

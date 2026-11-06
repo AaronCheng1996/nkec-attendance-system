@@ -494,3 +494,38 @@ tr.inactive td,
   background: var(--excused-soft);
   color: var(--excused);
 }
+
+/* People list: selection and batch actions */
+th.select,
+td.select {
+  width: 1%;
+  padding-right: 0;
+}
+
+tr.selected td {
+  background: var(--accent-soft);
+}
+
+.batch-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.batch-bar strong {
+  margin-right: auto;
+}
+
+button.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

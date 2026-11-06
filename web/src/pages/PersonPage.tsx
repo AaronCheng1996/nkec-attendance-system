@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, errorMessage } from '../api/client'
-import type { Gender, Group, PersonDetail } from '../api/types'
+import type { Gender, Group, Guardian, PersonDetail, RelationType } from '../api/types'
 import { age, gradeOptions, relationLabel, statusLabel, today } from '../format'
 
 export function PersonPage() {
@@ -24,21 +24,7 @@ export function PersonPage() {
 
       <EditPerson key={person.dataUpdatedAt} person={p} />
 
-      <section className="panel stack">
-        <h2>家長 / 聯絡人</h2>
-        {p.guardians.length === 0 && <p className="muted">尚無資料</p>}
-        <ul className="plain">
-          {p.guardians.map((g) => (
-            <li key={g.personId}>
-              {g.name}（{relationLabel[g.relationType]}）{g.phone && <a href={`tel:${g.phone}`}>{g.phone}</a>}
-              {g.isPrimaryContact && <span className="badge">主要聯絡人</span>}
-            </li>
-          ))}
-        </ul>
-        <p className="muted small">
-          {p.consentAt ? `個資同意：${new Date(p.consentAt).toLocaleDateString('zh-TW')}` : '尚未記錄個資同意'}
-        </p>
-      </section>
+      <Guardians person={p} />
 
       <Memberships person={p} />
 
@@ -241,5 +227,176 @@ function Memberships({ person }: { person: PersonDetail }) {
       </form>
       {error && <p className="error">{error}</p>}
     </section>
+  )
+}
+
+function Guardians({ person }: { person: PersonDetail }) {
+  const queryClient = useQueryClient()
+  // null: nothing open; 'new': the add form; a person id: that guardian's edit form.
+  const [editing, setEditing] = useState<number | 'new' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = () => {
+    setError(null)
+    setEditing(null)
+    queryClient.invalidateQueries({ queryKey: ['person', person.id] })
+    queryClient.invalidateQueries({ queryKey: ['people'] })
+  }
+
+  const save = useMutation({
+    mutationFn: ({ id, body }: { id: number | 'new'; body: GuardianForm & { isPrimaryContact: boolean } }) =>
+      api(id === 'new' ? `/people/${person.id}/guardians` : `/people/${person.id}/guardians/${id}`, {
+        method: id === 'new' ? 'POST' : 'PUT',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: refresh,
+    onError: (err) => setError(errorMessage(err)),
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => api(`/people/${person.id}/guardians/${id}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+    onError: (err) => setError(errorMessage(err)),
+  })
+
+  const formFor = (g: Guardian) => ({ name: g.name, phone: g.phone ?? '', relationType: g.relationType })
+
+  return (
+    <section className="panel stack">
+      <div className="section-head">
+        <h2>家長 / 聯絡人</h2>
+        {editing === null && (
+          <button type="button" className="secondary" onClick={() => setEditing('new')}>
+            ＋新增家長
+          </button>
+        )}
+      </div>
+      {person.guardians.length === 0 && editing !== 'new' && (
+        <p className="muted">尚無資料{person.phone && `（聯絡電話記在本人資料：${person.phone}）`}</p>
+      )}
+      <ul className="plain">
+        {person.guardians.map((g) =>
+          editing === g.personId ? (
+            <li key={g.personId}>
+              <GuardianEditor
+                initial={formFor(g)}
+                busy={save.isPending}
+                onCancel={() => setEditing(null)}
+                onSave={(form) => save.mutate({ id: g.personId, body: { ...form, isPrimaryContact: false } })}
+              />
+            </li>
+          ) : (
+            <li key={g.personId}>
+              {g.name}（{relationLabel[g.relationType]}）{g.phone && <a href={`tel:${g.phone}`}>{g.phone}</a>}
+              {g.isPrimaryContact && <span className="badge">主要聯絡人</span>}
+              {editing === null && (
+                <>
+                  {' '}
+                  <button type="button" className="link" onClick={() => setEditing(g.personId)}>
+                    編輯
+                  </button>
+                  {!g.isPrimaryContact && (
+                    <button
+                      type="button"
+                      className="link"
+                      disabled={save.isPending}
+                      onClick={() => save.mutate({ id: g.personId, body: { ...formFor(g), isPrimaryContact: true } })}
+                    >
+                      設為主要聯絡人
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="link"
+                    disabled={remove.isPending}
+                    onClick={() => confirm(`確定移除家長「${g.name}」？`) && remove.mutate(g.personId)}
+                  >
+                    移除
+                  </button>
+                </>
+              )}
+            </li>
+          ),
+        )}
+      </ul>
+      {editing === 'new' && (
+        <GuardianEditor
+          initial={{ name: '', phone: '', relationType: 'Mother' }}
+          busy={save.isPending}
+          onCancel={() => setEditing(null)}
+          onSave={(form) => save.mutate({ id: 'new', body: { ...form, isPrimaryContact: false } })}
+        />
+      )}
+      {error && <p className="error">{error}</p>}
+      <p className="muted small">
+        {person.consentAt ? `個資同意：${new Date(person.consentAt).toLocaleDateString('zh-TW')}` : '尚未記錄個資同意'}
+      </p>
+    </section>
+  )
+}
+
+interface GuardianForm {
+  name: string
+  phone: string
+  relationType: RelationType
+}
+
+function GuardianEditor({
+  initial,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  initial: GuardianForm
+  busy: boolean
+  onSave: (form: GuardianForm) => void
+  onCancel: () => void
+}) {
+  const [form, setForm] = useState(initial)
+  const set = <K extends keyof GuardianForm>(key: K, value: GuardianForm[K]) => setForm((f) => ({ ...f, [key]: value }))
+
+  return (
+    <form
+      className="toolbar"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSave(form)
+      }}
+    >
+      <input
+        value={form.name}
+        onChange={(e) => set('name', e.target.value)}
+        maxLength={50}
+        required
+        placeholder="家長姓名"
+        aria-label="家長姓名"
+      />
+      <select
+        value={form.relationType}
+        onChange={(e) => set('relationType', e.target.value as RelationType)}
+        aria-label="家長關係"
+      >
+        {Object.entries(relationLabel).map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <input
+        type="tel"
+        inputMode="tel"
+        value={form.phone}
+        onChange={(e) => set('phone', e.target.value)}
+        maxLength={20}
+        placeholder="電話"
+        aria-label="家長電話"
+      />
+      <button type="submit" disabled={busy}>
+        儲存
+      </button>
+      <button type="button" className="secondary" onClick={onCancel}>
+        取消
+      </button>
+    </form>
   )
 }

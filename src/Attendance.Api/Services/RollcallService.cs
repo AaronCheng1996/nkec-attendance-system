@@ -162,19 +162,7 @@ public class RollcallService(AppDbContext db)
             ConsentMethod = "App",
         };
 
-        if (Clean(req.GuardianName) is { } guardianName)
-        {
-            child.Guardians.Add(new PersonRelationship
-            {
-                RelatedPerson = new Person { Name = guardianName, Phone = Clean(req.GuardianPhone) },
-                RelationType = req.GuardianRelation ?? RelationType.Guardian,
-                IsPrimaryContact = true,
-            });
-        }
-        else
-        {
-            child.Phone = Clean(req.GuardianPhone);
-        }
+        Guardians.AddContact(child, req.GuardianName, req.GuardianPhone, req.GuardianRelation);
 
         db.People.Add(child);
         db.GroupMemberships.Add(new GroupMembership { Group = group, Person = child, StartDate = date });

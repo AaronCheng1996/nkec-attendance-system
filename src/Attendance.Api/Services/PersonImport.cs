@@ -16,7 +16,7 @@ public enum ImportRowStatus
 
 public record ImportRow(
     int Row, string Name, string? GroupName, Gender Gender, DateOnly? BirthDate, int? Grade, string? Phone,
-    ImportRowStatus Status, List<string> Messages);
+    string? GuardianName, RelationType? GuardianRelation, ImportRowStatus Status, List<string> Messages);
 
 public record ImportResult(bool Committed, int NewCount, int DuplicateCount, int ErrorCount, List<ImportRow> Rows);
 
@@ -40,6 +40,8 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
         ("gender", "性別", ["性別", "gender"]),
         ("birthDate", "生日", ["生日", "出生日期", "birthday", "birthdate"]),
         ("grade", "年級", ["年級", "grade"]),
+        ("guardian", "家長姓名", ["家長姓名", "家長", "監護人", "parent", "guardian"]),
+        ("relation", "家長關係", ["家長關係", "關係", "relation"]),
         ("phone", "電話", ["電話", "聯絡電話", "手機", "phone"]),
         ("notes", "備註", ["備註", "notes"]),
         ("externalId", "編號", ["編號", "外部編號", "學號", "id"]),
@@ -49,7 +51,8 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
 
     record Parsed(
         int Row, string Name, GroupRef? Group, string? GroupText, Gender Gender, DateOnly? BirthDate, int? Grade,
-        string? Phone, string? Notes, string? ExternalId, List<string> Errors);
+        string? Phone, string? GuardianName, RelationType? GuardianRelation, string? Notes, string? ExternalId,
+        List<string> Errors);
 
     /// <summary>An empty sheet to fill in, with drop-downs for the accessible groups, gender and grade.</summary>
     public async Task<byte[]> TemplateAsync()
@@ -76,6 +79,7 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
             "群組：需與系統中的群組名稱相同（見下方清單）；不同事工有同名群組時，請一併填寫「事工」。",
             "性別：男 / 女，可留空。生日：例如 2018-05-01、2018/5/1，或民國 107/5/1。",
             "年級：例如 小三、國一、高二、大班，或填數字（1–12），可留空。年級之後每年 8 月會自動升級。",
+            "家長姓名、家長關係（父親 / 母親 / 監護人）：選填。有填家長姓名時，電話記在家長資料上。",
             "編號：原有名冊的編號（選填），之後再匯入時用來辨識同一個人。",
             "系統中已有同名同生日（或同編號）的成員會略過，不會覆蓋原資料。",
         ];
@@ -97,6 +101,7 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
             sheet.Range(2, Col("group"), last, Col("group")).CreateDataValidation()
                 .List(help.Range(groupTop + 1, 1, groupTop + groups.Count, 1));
         sheet.Range(2, Col("gender"), last, Col("gender")).CreateDataValidation().List("\"男,女\"");
+        sheet.Range(2, Col("relation"), last, Col("relation")).CreateDataValidation().List("\"父親,母親,監護人\"");
         var gradeNames = string.Join(",", Enumerable.Range(SchoolGrade.Min, SchoolGrade.Max - SchoolGrade.Min + 1).Select(GradeName));
         sheet.Range(2, Col("grade"), last, Col("grade")).CreateDataValidation().List($"\"{gradeNames}\"");
 
@@ -166,7 +171,8 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
             }
 
             rows.Add(new ImportRow(
-                p.Row, p.Name, p.Group?.Name ?? p.GroupText, p.Gender, p.BirthDate, p.Grade, p.Phone, status, messages));
+                p.Row, p.Name, p.Group?.Name ?? p.GroupText, p.Gender, p.BirthDate, p.Grade, p.Phone,
+                p.GuardianName, p.GuardianName is null ? null : p.GuardianRelation ?? RelationType.Guardian, status, messages));
         }
 
         if (commit && toCreate.Count > 0)
@@ -180,12 +186,12 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
                     Gender = p.Gender,
                     BirthDate = p.BirthDate,
                     SchoolEntryYear = p.Grade is { } grade ? SchoolGrade.EntryYear(grade, today) : null,
-                    Phone = p.Phone,
                     Notes = p.Notes,
                     ExternalId = p.ExternalId,
                     ConsentAt = now,
                     ConsentMethod = "Paper",
                 };
+                Guardians.AddContact(person, p.GuardianName, p.Phone, p.GuardianRelation);
                 db.People.Add(person);
                 db.GroupMemberships.Add(new GroupMembership { GroupId = p.Group!.Id, Person = person, StartDate = startDate });
             }
@@ -271,13 +277,17 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
 
                 var phone = Cell("phone") is { } phoneCell ? PhoneText(phoneCell) : null;
                 if (phone is { Length: > 20 }) errors.Add("電話最多 20 個字");
+                var guardianName = Text("guardian");
+                if (guardianName is { Length: > 50 }) errors.Add("家長姓名最多 50 個字");
+                var relation = ParseRelation(Text("relation"), errors);
                 var notes = Text("notes");
                 if (notes is { Length: > 500 }) errors.Add("備註最多 500 個字");
                 var externalId = Text("externalId");
                 if (externalId is { Length: > 50 }) errors.Add("編號最多 50 個字");
 
                 result.Add(new Parsed(
-                    row.RowNumber(), name, group, groupText, gender, birthDate, grade, phone, notes, externalId, errors));
+                    row.RowNumber(), name, group, groupText, gender, birthDate, grade, phone, guardianName, relation,
+                    notes, externalId, errors));
             }
             return result;
         }
@@ -298,6 +308,24 @@ public partial class PersonImport(AppDbContext db, GroupAccess access)
             default:
                 errors.Add($"性別「{text}」無法辨識，請填 男 或 女");
                 return Gender.Unknown;
+        }
+    }
+
+    static RelationType? ParseRelation(string? text, List<string> errors)
+    {
+        switch (text?.ToLowerInvariant())
+        {
+            case null:
+                return null;
+            case "父" or "父親" or "爸爸" or "爸" or "father" or "dad":
+                return RelationType.Father;
+            case "母" or "母親" or "媽媽" or "媽" or "mother" or "mom":
+                return RelationType.Mother;
+            case "監護人" or "其他" or "guardian" or "other":
+                return RelationType.Guardian;
+            default:
+                errors.Add($"家長關係「{text}」無法辨識，請填 父親、母親 或 監護人");
+                return null;
         }
     }
 

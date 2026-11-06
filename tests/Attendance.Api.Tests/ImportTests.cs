@@ -105,6 +105,33 @@ public class ImportTests(ApiFactory app) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Guardian_columns_create_a_guardian_who_holds_the_phone()
+    {
+        await app.CreateGroupAsync("家長匯入班");
+        var client = await app.ClientForAsync(Roles.Admin);
+        var file = Workbook(
+            ["姓名", "群組", "家長姓名", "家長關係", "電話"],
+            ["有家長匯入", "家長匯入班", "匯入媽媽", "媽媽", "0955000555"],
+            ["沒家長匯入", "家長匯入班", null, null, "0966000666"],
+            ["關係錯誤", "家長匯入班", "某人", "阿姨", null]);
+
+        var result = await ResultAsync(await UploadAsync(client, file, commit: true));
+
+        Assert.Equal((2, 1), (result.NewCount, result.ErrorCount));
+        Assert.Equal(("匯入媽媽", RelationType.Mother), (result.Rows[0].GuardianName, result.Rows[0].GuardianRelation));
+        Assert.Contains(result.Rows[2].Messages, m => m.Contains("家長關係"));
+        var people = await app.WithDbAsync(db => db.People
+            .Where(p => p.Name == "有家長匯入" || p.Name == "沒家長匯入")
+            .Select(p => new { p.Name, p.Phone, Guardians = p.Guardians.Select(g => new { g.RelatedPerson.Name, g.RelatedPerson.Phone }).ToList() })
+            .ToDictionaryAsync(p => p.Name));
+        var mom = Assert.Single(people["有家長匯入"].Guardians);
+        Assert.Equal(("匯入媽媽", "0955000555"), (mom.Name, mom.Phone));
+        Assert.Null(people["有家長匯入"].Phone);
+        Assert.Empty(people["沒家長匯入"].Guardians);
+        Assert.Equal("0966000666", people["沒家長匯入"].Phone);
+    }
+
+    [Fact]
     public async Task External_id_identifies_people_across_imports()
     {
         await app.CreateGroupAsync("編號班");

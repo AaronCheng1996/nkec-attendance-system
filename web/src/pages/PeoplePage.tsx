@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDeferredValue, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { api, errorMessage } from '../api/client'
-import type { Gender, Group, PersonListItem } from '../api/types'
+import type { Gender, Group, PersonListItem, RelationType } from '../api/types'
 import { useAuth } from '../auth/useAuth'
-import { age, genderLabel, gradeLabel, gradeOptions, today } from '../format'
+import { age, genderLabel, gradeLabel, gradeOptions, relationLabel, today } from '../format'
+import { BatchBar } from './PeopleBatch'
 import { PeopleImport } from './PeopleImport'
 
 export function PeoplePage() {
@@ -14,6 +15,7 @@ export function PeoplePage() {
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
   const { hasRole } = useAuth()
   const deferredSearch = useDeferredValue(search.trim())
 
@@ -29,6 +31,19 @@ export function PeoplePage() {
     },
     placeholderData: (prev) => prev,
   })
+
+  // Only ticked people still in the list count, so a new search or filter never acts on hidden rows.
+  const visibleIds = people.data?.map((p) => p.id) ?? []
+  const selectedIds = visibleIds.filter((id) => selected.has(id))
+  const allSelected = visibleIds.length > 0 && selectedIds.length === visibleIds.length
+
+  const toggle = (id: number) =>
+    setSelected((s) => {
+      const next = new Set(s)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(visibleIds))
 
   return (
     <main className="page">
@@ -51,6 +66,16 @@ export function PeoplePage() {
         </p>
       )}
       {message && <p className="muted">{message}</p>}
+      {selectedIds.length > 0 && groups.data && (
+        <BatchBar
+          personIds={selectedIds}
+          groups={groups.data}
+          onDone={(result) => {
+            setSelected(new Set())
+            setMessage(result ?? null)
+          }}
+        />
+      )}
       {importing && (
         <PeopleImport
           onDone={(result) => {
@@ -70,7 +95,7 @@ export function PeoplePage() {
         />
       )}
       <div className="toolbar">
-        <input type="search" placeholder="搜尋姓名" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input type="search" placeholder="搜尋姓名或家長姓名" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select value={groupId} onChange={(e) => setGroupId(e.target.value)} aria-label="群組">
           <option value="">全部群組</option>
           {groups.data?.map((g) => (
@@ -93,7 +118,21 @@ export function PeoplePage() {
             <table>
               <thead>
                 <tr>
+                  <th className="select">
+                    <input
+                      type="checkbox"
+                      aria-label="全選"
+                      title="全選"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selectedIds.length > 0 && !allSelected
+                      }}
+                      onChange={toggleAll}
+                      disabled={visibleIds.length === 0}
+                    />
+                  </th>
                   <th>姓名</th>
+                  <th>家長</th>
                   <th>性別</th>
                   <th>年齡</th>
                   <th>年級</th>
@@ -103,12 +142,24 @@ export function PeoplePage() {
               </thead>
               <tbody>
                 {people.data.map((p) => (
-                  <tr key={p.id} className={p.isActive ? '' : 'inactive'}>
+                  <tr
+                    key={p.id}
+                    className={[p.isActive ? '' : 'inactive', selected.has(p.id) ? 'selected' : ''].join(' ').trim()}
+                  >
+                    <td className="select">
+                      <input
+                        type="checkbox"
+                        aria-label={`選取 ${p.name}`}
+                        checked={selected.has(p.id)}
+                        onChange={() => toggle(p.id)}
+                      />
+                    </td>
                     <td>
                       <Link to={`/admin/people/${p.id}`}>{p.name}</Link>
                       {p.nickname && <span className="muted">（{p.nickname}）</span>}
                       {!p.isActive && <span className="badge">停用</span>}
                     </td>
+                    <td>{p.guardians.join('、') || '—'}</td>
                     <td>{genderLabel[p.gender]}</td>
                     <td>{age(p.birthDate) ?? '—'}</td>
                     <td>{gradeLabel(p.grade) ?? '—'}</td>
@@ -141,6 +192,8 @@ function NewPersonForm({
     birthDate: '',
     grade: '',
     phone: '',
+    guardianName: '',
+    guardianRelation: 'Mother' as RelationType,
     groupId: defaultGroupId || String(groups[0].id),
     startDate: today(),
     consent: false,
@@ -217,7 +270,25 @@ function NewPersonForm({
           </select>
         </label>
         <label>
-          聯絡電話
+          家長姓名
+          <input value={form.guardianName} onChange={(e) => set('guardianName', e.target.value)} maxLength={50} />
+        </label>
+        <label>
+          家長關係
+          <select
+            value={form.guardianRelation}
+            onChange={(e) => set('guardianRelation', e.target.value as RelationType)}
+            disabled={!form.guardianName.trim()}
+          >
+            {Object.entries(relationLabel).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {form.guardianName.trim() ? '家長電話' : '聯絡電話'}
           <input
             type="tel"
             inputMode="tel"

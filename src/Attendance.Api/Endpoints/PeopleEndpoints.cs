@@ -11,7 +11,7 @@ public static class PeopleEndpoints
 {
     public record PersonListItem(
         int Id, string Name, string? Nickname, Gender Gender, DateOnly? BirthDate, int? Grade, DateOnly? FirstVisitDate,
-        bool IsActive, List<string> Groups);
+        bool IsActive, List<string> Groups, List<string> Guardians);
 
     public record GuardianDto(int PersonId, string Name, string? Phone, RelationType RelationType, bool IsPrimaryContact);
     public record MembershipDto(int Id, int GroupId, string GroupName, DateOnly StartDate, DateOnly? EndDate);
@@ -29,9 +29,12 @@ public static class PeopleEndpoints
     public record MovePersonRequest(int GroupId, DateOnly StartDate);
 
     /// <summary>An existing member entered by staff (newcomers are registered from the roll call page instead).</summary>
+    /// <remarks>With <paramref name="GuardianName"/> the phone is the guardian's; without it, the member's own.</remarks>
     public record CreatePersonRequest(
         string Name, Gender Gender, DateOnly? BirthDate, int? Grade, string? Phone, string? Notes,
-        int GroupId, DateOnly? StartDate, bool Consent);
+        int GroupId, DateOnly? StartDate, bool Consent, string? GuardianName = null, RelationType? GuardianRelation = null);
+
+    public record GuardianRequest(string Name, string? Phone, RelationType RelationType, bool IsPrimaryContact);
 
     public static void MapPeopleEndpoints(this IEndpointRouteBuilder api)
     {
@@ -45,6 +48,10 @@ public static class PeopleEndpoints
         people.MapPut("/{id:int}", Update);
         people.MapPost("/{id:int}/move", Move);
         people.MapDelete("/{id:int}/memberships/{membershipId:int}", EndMembership);
+        people.MapPost("/{id:int}/guardians", AddGuardian);
+        people.MapPut("/{id:int}/guardians/{guardianId:int}", UpdateGuardian);
+        people.MapDelete("/{id:int}/guardians/{guardianId:int}", RemoveGuardian);
+        people.MapPeopleBatchEndpoints();
     }
 
     static Task<List<PersonListItem>> List(
@@ -57,7 +64,8 @@ public static class PeopleEndpoints
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
-            q = q.Where(p => p.Name.Contains(s) || (p.Nickname != null && p.Nickname.Contains(s)));
+            q = q.Where(p => p.Name.Contains(s) || (p.Nickname != null && p.Nickname.Contains(s))
+                || p.Guardians.Any(g => g.RelatedPerson.Name.Contains(s)));
         }
         if (groupId is not null)
             q = q.Where(p => p.Memberships.Any(m =>
@@ -72,6 +80,10 @@ public static class PeopleEndpoints
                 p.Memberships
                     .Where(m => m.StartDate <= today && (m.EndDate == null || m.EndDate >= today))
                     .Select(m => m.Group.Name)
+                    .ToList(),
+                p.Guardians
+                    .OrderByDescending(g => g.IsPrimaryContact)
+                    .Select(g => g.RelatedPerson.Name)
                     .ToList()))
             .ToListAsync();
     }
@@ -84,6 +96,9 @@ public static class PeopleEndpoints
         if (Http.TooLong(req.Notes, 500)) return Http.Invalid("notes", "備註最多 500 個字");
         if (!SchoolGrade.IsValid(req.Grade)) return Http.Invalid("grade", "年級不正確");
         if (!Enum.IsDefined(req.Gender)) return Http.Invalid("gender", "性別不正確");
+        if (Http.TooLong(req.GuardianName, 50)) return Http.Invalid("guardianName", "家長姓名最多 50 個字");
+        if (req.GuardianRelation is { } relation && !Enum.IsDefined(relation))
+            return Http.Invalid("guardianRelation", "家長關係不正確");
         if (!req.Consent) return Http.Invalid("consent", "需取得家長同意才能登記個人資料");
 
         var today = clock.Today;
@@ -97,11 +112,11 @@ public static class PeopleEndpoints
             Gender = req.Gender,
             BirthDate = req.BirthDate,
             SchoolEntryYear = req.Grade is { } grade ? SchoolGrade.EntryYear(grade, today) : null,
-            Phone = Clean(req.Phone),
             Notes = Clean(req.Notes),
             ConsentAt = DateTimeOffset.UtcNow,
             ConsentMethod = "Paper",
         };
+        Guardians.AddContact(person, req.GuardianName, req.Phone, req.GuardianRelation);
         db.People.Add(person);
         db.GroupMemberships.Add(new GroupMembership { Group = group, Person = person, StartDate = req.StartDate ?? today });
 
@@ -205,18 +220,96 @@ public static class PeopleEndpoints
             .FirstOrDefaultAsync(p => p.Id == id);
         if (person is null) return Results.NotFound();
 
-        var current = person.Memberships
-            .Where(m => m.Group.MinistryId == target.MinistryId && (m.EndDate == null || m.EndDate >= req.StartDate))
-            .ToList();
-        if (current.Any(m => m.GroupId == target.Id && m.StartDate <= req.StartDate))
+        if (!MoveMember(db, person, target, req.StartDate))
             return Results.Problem("此成員已在該群組", statusCode: StatusCodes.Status409Conflict);
+        await db.SaveChangesAsync();
+        return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Ends the person's memberships in the target's ministry the day before <paramref name="startDate"/> and adds
+    /// the new one. <paramref name="person"/> needs its memberships and their groups loaded.
+    /// </summary>
+    /// <returns>False when the person is already in the target group on that date (nothing changes).</returns>
+    internal static bool MoveMember(AppDbContext db, Person person, Group target, DateOnly startDate)
+    {
+        var current = person.Memberships
+            .Where(m => m.Group.MinistryId == target.MinistryId && (m.EndDate == null || m.EndDate >= startDate))
+            .ToList();
+        if (current.Any(m => m.GroupId == target.Id && m.StartDate <= startDate)) return false;
 
         foreach (var m in current)
         {
-            if (m.StartDate >= req.StartDate) db.GroupMemberships.Remove(m);
-            else m.EndDate = req.StartDate.AddDays(-1);
+            if (m.StartDate >= startDate) db.GroupMemberships.Remove(m);
+            else m.EndDate = startDate.AddDays(-1);
         }
-        db.GroupMemberships.Add(new GroupMembership { GroupId = target.Id, PersonId = id, StartDate = req.StartDate });
+        db.GroupMemberships.Add(new GroupMembership { GroupId = target.Id, PersonId = person.Id, StartDate = startDate });
+        return true;
+    }
+
+    static IResult? ValidateGuardian(GuardianRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Name)) return Http.Invalid("name", "請輸入家長姓名");
+        if (Http.TooLong(req.Name, 50)) return Http.Invalid("name", "姓名最多 50 個字");
+        if (Http.TooLong(req.Phone, 20)) return Http.Invalid("phone", "電話格式不正確");
+        if (!Enum.IsDefined(req.RelationType)) return Http.Invalid("relationType", "家長關係不正確");
+        return null;
+    }
+
+    static async Task<IResult> AddGuardian(int id, GuardianRequest req, AppDbContext db, GroupAccess access)
+    {
+        if (ValidateGuardian(req) is { } invalid) return invalid;
+        var child = await access.People().Include(p => p.Guardians).FirstOrDefaultAsync(p => p.Id == id);
+        if (child is null) return Results.NotFound();
+
+        // The first guardian is always the main contact.
+        var primary = req.IsPrimaryContact || child.Guardians.Count == 0;
+        if (primary) child.Guardians.ForEach(g => g.IsPrimaryContact = false);
+        var guardian = Guardians.New(req.Name, req.Phone, req.RelationType);
+        child.Guardians.Add(new PersonRelationship
+        {
+            RelatedPerson = guardian, RelationType = req.RelationType, IsPrimaryContact = primary,
+        });
+        await db.SaveChangesAsync();
+        return Results.Created($"/api/people/{guardian.Id}", new { guardian.Id });
+    }
+
+    static async Task<IResult> UpdateGuardian(
+        int id, int guardianId, GuardianRequest req, AppDbContext db, GroupAccess access)
+    {
+        if (ValidateGuardian(req) is { } invalid) return invalid;
+        var child = await access.People()
+            .Include(p => p.Guardians).ThenInclude(g => g.RelatedPerson)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        var link = child?.Guardians.FirstOrDefault(g => g.RelatedPersonId == guardianId);
+        if (child is null || link is null) return Results.NotFound();
+
+        link.RelatedPerson.Name = req.Name.Trim();
+        link.RelatedPerson.Phone = Clean(req.Phone);
+        link.RelationType = req.RelationType;
+        // There is always one main contact, so this can only hand the role over, never clear it.
+        if (req.IsPrimaryContact) child.Guardians.ForEach(g => g.IsPrimaryContact = g == link);
+        await db.SaveChangesAsync();
+        return Results.NoContent();
+    }
+
+    /// <summary>Unlinks a guardian; the guardian's own record is deleted too unless something else refers to it.</summary>
+    static async Task<IResult> RemoveGuardian(int id, int guardianId, AppDbContext db, GroupAccess access)
+    {
+        var child = await access.People().Include(p => p.Guardians).FirstOrDefaultAsync(p => p.Id == id);
+        var link = child?.Guardians.FirstOrDefault(g => g.RelatedPersonId == guardianId);
+        if (child is null || link is null) return Results.NotFound();
+
+        child.Guardians.Remove(link);
+        if (link.IsPrimaryContact && child.Guardians.FirstOrDefault() is { } next) next.IsPrimaryContact = true;
+
+        var inUse = await db.PersonRelationships.AnyAsync(r =>
+                (r.RelatedPersonId == guardianId && r.PersonId != id) || r.PersonId == guardianId)
+            || await db.GroupMemberships.AnyAsync(m => m.PersonId == guardianId)
+            || await db.AttendanceRecords.AnyAsync(r => r.PersonId == guardianId)
+            || await db.Users.AnyAsync(u => u.PersonId == guardianId);
+        if (!inUse && await db.People.FindAsync(guardianId) is { } orphan) db.People.Remove(orphan);
+
         await db.SaveChangesAsync();
         return Results.NoContent();
     }

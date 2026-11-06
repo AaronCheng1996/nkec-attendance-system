@@ -58,7 +58,9 @@ export interface NewcomerRequest {
   name: string
   birthDate: string | null
   grade: number | null
-  /** 聯絡電話。沒有填家長姓名時存在孩子本人的資料上，關懷名單會顯示。 */
+  guardianName: string
+  guardianRelation: RelationType
+  /** 聯絡電話。有填家長姓名時記在家長資料上，否則存在孩子本人的資料上；關懷名單都會顯示。 */
   guardianPhone: string
   consent: boolean
 }
@@ -73,6 +75,16 @@ export interface PersonListItem {
   firstVisitDate: string | null
   isActive: boolean
   groups: string[]
+  /** 家長姓名，主要聯絡人在前。 */
+  guardians: string[]
+}
+
+export interface Guardian {
+  personId: number
+  name: string
+  phone: string | null
+  relationType: RelationType
+  isPrimaryContact: boolean
 }
 
 export interface PersonDetail {
@@ -88,7 +100,7 @@ export interface PersonDetail {
   consentAt: string | null
   notes: string | null
   isActive: boolean
-  guardians: { personId: number; name: string; phone: string | null; relationType: RelationType; isPrimaryContact: boolean }[]
+  guardians: Guardian[]
   memberships: { id: number; groupId: number; groupName: string; startDate: string; endDate: string | null }[]
   recentAttendance: { date: string; groupName: string; status: AttendanceStatus }[]
 }
@@ -179,6 +191,8 @@ export interface ImportRow {
   birthDate: string | null
   grade: number | null
   phone: string | null
+  guardianName: string | null
+  guardianRelation: RelationType | null
   status: ImportRowStatus
   messages: string[]
 }
@@ -189,4 +203,9 @@ export interface ImportResult {
   duplicateCount: number
   errorCount: number
   rows: ImportRow[]
+}
+
+export interface BatchResult {
+  updated: number
+  skipped: number
 }
