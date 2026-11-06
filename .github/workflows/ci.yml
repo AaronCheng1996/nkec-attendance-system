@@ -1,5 +1,7 @@
 # 每次推送與 PR：跑測試、建置 Docker image，並用真正的 SQL Server 做 smoke test。
-# 推送到 main 或打 v* 標籤時，另外把 image 推上 Docker Hub，遠端主機的 deploy/update.sh 會自動更新。
+# 推送到 main：image 只以 sha-xxxxxxx 標籤推上 Docker Hub（可供測試或回復），不會上線。
+# 打 v* 標籤（例如 git tag v0.1.2 && git push origin v0.1.2）：另外更新 latest 與版本號標籤，
+# 遠端主機的 deploy/update.sh 追 latest，所以只有打標籤的版本會上線。
 #
 # 需要在 GitHub repo 的 Settings → Secrets and variables → Actions 設定：
 #   DOCKERHUB_USERNAME  Docker Hub 帳號（放在 Variables 或 Secrets 皆可）
@@ -101,8 +103,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKERHUB_USERNAME }}/nkec-attendance-system
+          # latest (what the server deploys) only moves on a release tag, never on a plain push.
+          flavor: latest=false
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=sha,format=short
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

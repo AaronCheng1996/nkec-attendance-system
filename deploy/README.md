@@ -1,7 +1,7 @@
 # 部署說明
 
 ```
-git push（main）──► GitHub Actions ──► 測試 ──► 建置 image ──► SQL Server smoke test ──► Docker Hub
+git push --tags（v*）──► GitHub Actions ──► 測試 ──► 建置 image ──► SQL Server smoke test ──► Docker Hub（latest）
                                                                                          │
                                        遠端主機 cron 定期執行 update.sh ◄────────────────┘
                                        （有新版 → 備份資料庫 → 更新 → 確認啟動）
@@ -15,13 +15,20 @@ git push（main）──► GitHub Actions ──► 測試 ──► 建置 ima
    - **Variables**（或 Secrets）新增 `DOCKERHUB_USERNAME` = Docker Hub 帳號
    - **Secrets** 新增 `DOCKERHUB_TOKEN` = 上一步的 token
 
-之後每次推送到 `main`，通過測試的 image 會以這些標籤推上 Docker Hub：
+通過測試的 image 會以這些標籤推上 Docker Hub：
 
 | 標籤 | 何時產生 | 用途 |
 |---|---|---|
-| `latest` | 推送到 main | 一般使用，自動更新會追這個 |
-| `sha-abc1234` | 每次推送 | 固定在某次 commit，用於回到舊版 |
-| `1.2.0`、`1.2` | 打標籤 `git tag v1.2.0 && git push --tags` | 正式版本 |
+| `latest` | 打 `v*` 標籤 | 上線版本，自動更新追這個 |
+| `1.2.0`、`1.2` | 打 `v*` 標籤 | 正式版本號 |
+| `sha-abc1234` | 每次推送（main 或標籤） | 固定在某次 commit，用於測試或回到舊版 |
+
+**只有打標籤的版本會上線**；平常推送到 main 只會產生 `sha-` 標籤，不影響主機。發布新版：
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
 
 ## 二、遠端主機首次部署
 
